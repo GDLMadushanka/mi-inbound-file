@@ -19,7 +19,8 @@
         {
             "tagName": "v0.9.3",
             "products": [
-                "MI 4.5.0"
+                "MI 4.5.0",
+                "MI 4.6.0"
             ],
             "operations": [
                 {
