@@ -28,9 +28,6 @@ public abstract class ChunkedDataProcessor implements StreamingProcessor {
     protected int bufferSize = 8192; // Default buffer size in BufferedReader class is 8192 bytes (8 KB)
     protected Charset defaultCharset = StandardCharsets.UTF_8;
 
-    public ChunkedDataProcessor() {
-    }
-
     public ChunkedDataProcessor(int bufferSize) {
         this.bufferSize = Math.max(512, bufferSize);
     }
@@ -102,7 +99,7 @@ public abstract class ChunkedDataProcessor implements StreamingProcessor {
     }
 
     @Override
-    public abstract Iterator<StreamChunk> getChunkIterator(InputStream input, String contentType)
-            throws StreamingException;
+    public abstract Iterator<StreamChunk> getChunkIterator(InputStream input, String contentType,
+        int chunkSize) throws StreamingException;
 
 }

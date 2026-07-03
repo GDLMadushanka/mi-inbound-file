@@ -83,6 +83,21 @@
             <artifactId>asn-one</artifactId>
             <version>${com.hierynomus.asn1.version}</version>
         </dependency>
+
+        <!-- CSV Streaming Support -->
+        <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-csv</artifactId>
+            <version>1.14.1</version>
+        </dependency>
+
+        <!-- Testing -->
+        <dependency>
+            <groupId>junit</groupId>
+            <artifactId>junit</artifactId>
+            <version>4.13.2</version>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
     <build>
         <plugins>

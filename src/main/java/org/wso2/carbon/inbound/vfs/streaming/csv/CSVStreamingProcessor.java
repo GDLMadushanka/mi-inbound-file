@@ -51,19 +51,19 @@ public class CSVStreamingProcessor extends ChunkedDataProcessor {
     private boolean addHeadersToEachResult = false; // Add header to each result row or chunk
 
     public CSVStreamingProcessor(int bufferSize, char delimiter, char quoteChar, boolean hasHeader,
-        int chunkSize, boolean addOutputToVariable, boolean addHeadersToEachResult) {
+        boolean addOutputToVariable, boolean addHeadersToEachResult) {
         super(bufferSize);
         this.delimiter = delimiter;
         this.quoteChar = quoteChar;
         this.hasHeader = hasHeader;
-        this.chunkSize = Math.max(1, chunkSize);
         this.addOutputToVariable = addOutputToVariable;
         this.addHeadersToEachResult = addHeadersToEachResult;
     }
 
     @Override
-    public Iterator<StreamChunk> getChunkIterator(InputStream input, String contentType)
+    public Iterator<StreamChunk> getChunkIterator(InputStream input, String contentType, int chunkSize)
         throws StreamingException {
+        this.chunkSize = Math.max(1, chunkSize);
         try {
             Charset charset = detectCharset(contentType);
             BufferedReader reader = new BufferedReader(
@@ -115,17 +115,39 @@ public class CSVStreamingProcessor extends ChunkedDataProcessor {
     }
 
     /**
-     * Build record content as comma-separated string.
+     * Build record content as a delimiter-separated string.
+     * Fields are re-quoted per RFC 4180 so the reconstruction is a faithful, non-lossy
+     * round-trip: a field is wrapped in quotes if it contains the delimiter, the quote
+     * character, or a line break, and any embedded quote characters are doubled.
      */
     private String buildRecordContent(CSVRecord record) {
         if (record.size() == 0) {
             return "";
         }
-        StringBuilder sb = new StringBuilder(record.get(0));
+        StringBuilder sb = new StringBuilder(quoteField(record.get(0)));
         for (int i = 1; i < record.size(); i++) {
-            sb.append(delimiter).append(record.get(i));
+            sb.append(delimiter).append(quoteField(record.get(i)));
         }
         return sb.toString();
+    }
+
+    /**
+     * Quote a single CSV field per RFC 4180 if it contains the delimiter, the quote
+     * character, or a line break. Embedded quote characters are escaped by doubling.
+     */
+    private String quoteField(String field) {
+        boolean needsQuoting = field.indexOf(delimiter) >= 0
+            || field.indexOf(quoteChar) >= 0
+            || field.indexOf('\n') >= 0
+            || field.indexOf('\r') >= 0;
+
+        if (!needsQuoting) {
+            return field;
+        }
+
+        String escaped = field.replace(String.valueOf(quoteChar),
+            String.valueOf(quoteChar) + quoteChar);
+        return quoteChar + escaped + quoteChar;
     }
 
     /**
@@ -224,20 +246,24 @@ public class CSVStreamingProcessor extends ChunkedDataProcessor {
 
                 if (addOutputToVariable) {
                     if (headers != null && headers.length > 0) {
-                        ArrayList<HashMap<String, Object>> payload = (ArrayList<HashMap<String, Object>>)chunk.getMetadata().get("payload");
-                        Map<String, String> recordMetadata = new HashMap<>();
+                        @SuppressWarnings("unchecked")
+                        ArrayList<HashMap<String, Object>> payload =
+                            (ArrayList<HashMap<String, Object>>)chunk.getMetadata().get("payload");
+                        HashMap<String, Object> recordMetadata = new HashMap<>();
                         for (int i = 0; i < headers.length && i < record.size(); i++) {
                             recordMetadata.put(headers[i], record.get(i));
                         }
-                        payload.get(rowsInChunk-1).putAll(recordMetadata);
+                        payload.add(rowsInChunk-1, recordMetadata);
                     } else {
                         // If no headers, store the row as a list of values
-                        ArrayList<HashMap<String, Object>> payload = (ArrayList<HashMap<String, Object>>)chunk.getMetadata().get("payload");
+                        @SuppressWarnings("unchecked")
+                        ArrayList<HashMap<String, Object>> payload =
+                            (ArrayList<HashMap<String, Object>>)chunk.getMetadata().get("payload");
                         HashMap<String, Object> rowData = new HashMap<>();
                         for (int i = 0; i < record.size(); i++) {
                             rowData.put(String.valueOf(i), record.get(i));
                         }
-                        payload.get(rowsInChunk-1).putAll(rowData);
+                        payload.add(rowsInChunk -1, rowData);
                     }
                 } else {
                     String recordContent = buildRecordContent(record);
@@ -331,7 +357,6 @@ public class CSVStreamingProcessor extends ChunkedDataProcessor {
 
                 if (addOutputToVariable) {
                     streamRecord.putMetadata("headers", headers);
-                    streamRecord.putMetadata("payload", new ArrayList<HashMap<String, Object>>());
                     if (headers != null && headers.length > 0) {
                         Map<String, String> recordMetadata = new HashMap<>();
                         for (int i = 0; i < headers.length && i < record.size(); i++) {
@@ -348,6 +373,18 @@ public class CSVStreamingProcessor extends ChunkedDataProcessor {
                     }
                 } else {
                     String recordContent = buildRecordContent(record);
+                    if (addHeadersToEachResult && headers != null && headers.length > 0) {
+                        StringBuilder sb = new StringBuilder();
+                        for (int i = 0; i < headers.length; i++) {
+                            sb.append(headers[i]);
+                            if (i < headers.length - 1) {
+                                sb.append(delimiter);
+                            }
+                        }
+                        sb.append(System.lineSeparator());
+                        sb.append(recordContent);
+                        recordContent = sb.toString();
+                    }
                     streamRecord.setContent(recordContent.getBytes(charset));
                 }
 

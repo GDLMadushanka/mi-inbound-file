@@ -135,14 +135,6 @@ public class StreamChunk {
         return lastRecordNumber;
     }
 
-    public boolean isRowByRowMode() {
-        return chunkSize == 1;
-    }
-
-    public boolean isChunkMode() {
-        return chunkSize > 1;
-    }
-
     @Override
     public String toString() {
         return "StreamChunk{" +

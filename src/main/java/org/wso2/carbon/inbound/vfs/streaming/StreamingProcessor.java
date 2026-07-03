@@ -26,13 +26,13 @@ public interface StreamingProcessor {
     /**
      * Get an iterator of chunks (batches of records) from the input stream.
      * Use this for batch processing (multiple rows per chunk).
-     *
+     * <p>
      * Guarantees:
      * - Each StreamChunk contains multiple complete, valid records
      * - No partial records or split fields
      * - Multi-byte characters are never split
      * - Record boundaries are preserved
-     *
+     * <p>
      * Structure:
      * - Headers stored on StreamChunk (always)
      * - Individual StreamRecords in chunk (no headers)
@@ -43,18 +43,19 @@ public interface StreamingProcessor {
      * @return an Iterator of StreamChunk (batches of records)
      * @throws StreamingException if initialization fails
      */
-    Iterator<StreamChunk> getChunkIterator(InputStream input, String contentType) throws StreamingException;
+    Iterator<StreamChunk> getChunkIterator(InputStream input, String contentType, int chunkSize)
+        throws StreamingException;
 
     /**
      * Get an iterator of individual records from the input stream.
      * Use this for row-by-row processing (one record per iteration).
-     *
+     * <p>
      * Guarantees:
      * - Each StreamRecord is a complete, valid record
      * - No partial records or split fields
      * - Multi-byte characters are never split
      * - Record boundaries are preserved
-     *
+     * <p>
      * Structure:
      * - Headers on StreamRecord (if configured)
      * - Metadata on StreamRecord (if configured)
