@@ -61,6 +61,17 @@ public class CSVStreamingProcessor extends ChunkedDataProcessor {
     }
 
     @Override
+    public boolean canProcess(String contentType) {
+        if (contentType == null) {
+            return false;
+        }
+        String lower = contentType.toLowerCase();
+        return lower.contains("text/csv")
+            || lower.contains("application/csv")
+            || lower.endsWith(".csv");
+    }
+
+    @Override
     public Iterator<StreamChunk> getChunkIterator(InputStream input, String contentType, int chunkSize)
         throws StreamingException {
         this.chunkSize = Math.max(1, chunkSize);

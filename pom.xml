@@ -18,7 +18,7 @@
 
     <groupId>org.wso2.integration.inbound</groupId>
     <artifactId>mi-inbound-file</artifactId>
-    <version>0.9.4-SNAPSHOT</version>
+    <version>0.9.4</version>
     <name>File Event Listener</name>
     <parent>
         <groupId>org.wso2</groupId>
@@ -66,12 +66,12 @@
         <dependency>
             <groupId>org.apache.synapse</groupId>
             <artifactId>synapse-commons</artifactId>
-            <version>4.0.0-wso2v227</version>
+            <version>4.1.0-wso2v48</version>
         </dependency>
         <dependency>
             <groupId>org.apache.synapse</groupId>
             <artifactId>synapse-core</artifactId>
-            <version>4.0.0-wso2v227</version>
+            <version>4.1.0-wso2v48</version>
         </dependency>
         <dependency>
             <groupId>com.hierynomus.wso2</groupId>

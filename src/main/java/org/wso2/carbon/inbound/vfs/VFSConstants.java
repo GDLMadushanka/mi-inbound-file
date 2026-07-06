@@ -71,6 +71,38 @@ public class VFSConstants {
 
     public static final String STREAMING = "transport.vfs.Streaming";
 
+    /**
+     * Streaming mode, effective only when {@link #STREAMING} is true.
+     * Accepted values (case-insensitive): ENTIRE_FILE (default, previous behaviour),
+     * CHUNK (batch of records per message, uses ChunkIterator),
+     * RECORD (one record per message, uses RowIterator).
+     */
+    public static final String STREAMING_MODE = "transport.vfs.StreamingMode";
+    public static final String STREAMING_MODE_ENTIRE_FILE = "ENTIRE_FILE";
+    public static final String STREAMING_MODE_CHUNK = "CHUNK";
+    public static final String STREAMING_MODE_RECORD = "RECORD";
+
+    // Buffer size (bytes) used by the streaming reader in CHUNK and RECORD modes.
+    public static final String STREAMING_BUFFER_SIZE = "transport.vfs.StreamingBufferSize";
+    public static final int DEFAULT_STREAMING_BUFFER_SIZE = 8192;
+
+    // Number of records per chunk, used in CHUNK mode only.
+    public static final String STREAMING_CHUNK_SIZE = "transport.vfs.StreamingChunkSize";
+    public static final int DEFAULT_STREAMING_CHUNK_SIZE = 1;
+
+    // Name of the message-context variable to hold the parsed streaming output. When set
+    // (non-empty), the parsed fields are placed in this variable and the message body is left
+    // empty; when omitted, the raw record/chunk content is set as the message body instead.
+    public static final String STREAMING_OUTPUT_VARIABLE = "transport.vfs.StreamingOutputVariable";
+
+    // CSV-specific streaming parameters.
+    public static final String STREAMING_CSV_DELIMITER = "transport.vfs.StreamingCsvDelimiter";
+    public static final String STREAMING_CSV_QUOTE = "transport.vfs.StreamingCsvQuote";
+    public static final String STREAMING_CSV_HAS_HEADER = "transport.vfs.StreamingCsvHasHeader";
+    // When true (RECORD mode raw content), the header row is prepended to each record's content.
+    public static final String STREAMING_ADD_HEADERS_TO_EACH_RESULT
+            = "transport.vfs.StreamingAddHeadersToEachResult";
+
     public static final String MAX_RETRY_COUNT = "transport.vfs.MaxRetryCount";
     public static final String FORCE_CREATE_FOLDER = "transport.vfs.CreateFolder";
     public static final String RECONNECT_TIMEOUT = "transport.vfs.ReconnectTimeout";

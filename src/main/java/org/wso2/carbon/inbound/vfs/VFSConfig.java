@@ -109,6 +109,14 @@ public class VFSConfig {
      */
     private boolean checkSizeIgnoreEmpty;
     private boolean streaming;
+    private String streamingMode;
+    private int streamingBufferSize;
+    private int streamingChunkSize;
+    private String streamingOutputVariable;
+    private boolean streamingAddHeadersToEachResult;
+    private char streamingCsvDelimiter;
+    private char streamingCsvQuote;
+    private boolean streamingCsvHasHeader;
     private boolean build;
     private int maxRetryCount;
     private long reconnectTimeout;
@@ -167,6 +175,25 @@ public class VFSConfig {
                 properties.getProperty(VFSConstants.UPDATE_LAST_MODIFIED, "false"));
         this.streaming = Boolean.parseBoolean(
                 properties.getProperty(VFSConstants.STREAMING, "false"));
+
+        // Streaming mode and its parameters (only relevant when streaming is enabled).
+        this.streamingMode = properties.getProperty(
+                VFSConstants.STREAMING_MODE, VFSConstants.STREAMING_MODE_ENTIRE_FILE);
+        this.streamingBufferSize = Integer.parseInt(
+                properties.getProperty(VFSConstants.STREAMING_BUFFER_SIZE,
+                        String.valueOf(VFSConstants.DEFAULT_STREAMING_BUFFER_SIZE)));
+        this.streamingChunkSize = Integer.parseInt(
+                properties.getProperty(VFSConstants.STREAMING_CHUNK_SIZE,
+                        String.valueOf(VFSConstants.DEFAULT_STREAMING_CHUNK_SIZE)));
+        this.streamingOutputVariable = properties.getProperty(VFSConstants.STREAMING_OUTPUT_VARIABLE);
+        this.streamingAddHeadersToEachResult = Boolean.parseBoolean(
+                properties.getProperty(VFSConstants.STREAMING_ADD_HEADERS_TO_EACH_RESULT, "false"));
+        this.streamingCsvDelimiter = firstCharOrDefault(
+                properties.getProperty(VFSConstants.STREAMING_CSV_DELIMITER), ',');
+        this.streamingCsvQuote = firstCharOrDefault(
+                properties.getProperty(VFSConstants.STREAMING_CSV_QUOTE), '"');
+        this.streamingCsvHasHeader = Boolean.parseBoolean(
+                properties.getProperty(VFSConstants.STREAMING_CSV_HAS_HEADER, "true"));
         this.build = Boolean.parseBoolean(
                 properties.getProperty(VFSConstants.TRANSPORT_BUILD, "false"));
         this.fileLocking = VFSConstants.TRANSPORT_FILE_LOCKING_ENABLED.equalsIgnoreCase(
@@ -462,6 +489,58 @@ public class VFSConfig {
 
     public boolean isStreaming() {
         return streaming;
+    }
+
+    public String getStreamingMode() {
+        return streamingMode;
+    }
+
+    public int getStreamingBufferSize() {
+        return streamingBufferSize;
+    }
+
+    public int getStreamingChunkSize() {
+        return streamingChunkSize;
+    }
+
+    /**
+     * Name of the message-context variable to hold the parsed streaming output, or null/empty
+     * if the output should be set as the message body instead.
+     */
+    public String getStreamingOutputVariable() {
+        return streamingOutputVariable;
+    }
+
+    /**
+     * True when a streaming output variable name is configured, meaning parsed fields should be
+     * placed in a variable and the message body left empty.
+     */
+    public boolean isStreamingAddOutputToVariable() {
+        return streamingOutputVariable != null && !streamingOutputVariable.trim().isEmpty();
+    }
+
+    public boolean isStreamingAddHeadersToEachResult() {
+        return streamingAddHeadersToEachResult;
+    }
+
+    public char getStreamingCsvDelimiter() {
+        return streamingCsvDelimiter;
+    }
+
+    public char getStreamingCsvQuote() {
+        return streamingCsvQuote;
+    }
+
+    public boolean isStreamingCsvHasHeader() {
+        return streamingCsvHasHeader;
+    }
+
+    /**
+     * Returns the first character of the given value, or the fallback when the value is
+     * null or empty. Used to parse single-character CSV parameters (delimiter, quote).
+     */
+    private static char firstCharOrDefault(String value, char fallback) {
+        return (value != null && !value.isEmpty()) ? value.charAt(0) : fallback;
     }
 
     public int getMaxRetryCount() {
