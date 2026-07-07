@@ -19,13 +19,16 @@
 package org.wso2.carbon.inbound.vfs.streaming;
 
 import org.wso2.carbon.inbound.vfs.VFSConfig;
+import org.wso2.carbon.inbound.vfs.VFSConstants;
 import org.wso2.carbon.inbound.vfs.streaming.csv.CSVStreamingProcessor;
+import org.wso2.carbon.inbound.vfs.streaming.json.JSONStreamingProcessor;
+import org.wso2.carbon.inbound.vfs.streaming.text.TextStreamingProcessor;
 
 /**
- * Selects a {@link StreamingProcessor} for a file based on its content type.
+ * Selects a {@link StreamingProcessor} based on the configured streaming input format.
  * <p>
- * Only CSV is supported today, but the selection is content-type driven so that
- * JSON/XML processors can be registered here later without touching callers.
+ * Only CSV is implemented today. The selection is format-driven so that JSON/XML/TEXT
+ * processors can be registered here later without touching callers.
  */
 public class StreamingProcessorFactory {
 
@@ -33,26 +36,39 @@ public class StreamingProcessorFactory {
     }
 
     /**
-     * Return a processor able to handle the given content type, configured from the
-     * supplied VFS configuration, or {@code null} if no registered processor matches.
+     * Return a processor for the given streaming input format, configured from the supplied
+     * VFS configuration, or {@code null} if no processor is registered for that format.
      *
-     * @param contentType the resolved MIME type of the file
-     * @param config      the inbound VFS configuration carrying streaming parameters
+     * @param format the streaming input format (e.g. text, csv, json, xml)
+     * @param config the inbound VFS configuration carrying streaming parameters
      * @return a matching {@link StreamingProcessor}, or {@code null} if unsupported
      */
-    public static StreamingProcessor getProcessor(String contentType, VFSConfig config) {
-        CSVStreamingProcessor csvProcessor = new CSVStreamingProcessor(
-                config.getStreamingBufferSize(),
-                config.getStreamingCsvDelimiter(),
-                config.getStreamingCsvQuote(),
-                config.isStreamingCsvHasHeader(),
-                config.isStreamingAddOutputToVariable(),
-                config.isStreamingAddHeadersToEachResult());
-        if (csvProcessor.canProcess(contentType)) {
-            return csvProcessor;
+    public static StreamingProcessor getProcessor(String format, VFSConfig config) {
+        if (format == null) {
+            return null;
         }
 
-        // Future formats (JSON, XML, ...) can be checked here.
-        return null;
+        switch (format.toLowerCase()) {
+            case VFSConstants.STREAMING_FORMAT_CSV:
+                return new CSVStreamingProcessor(
+                        config.getStreamingBufferSize(),
+                        config.getStreamingCsvDelimiter(),
+                        config.getStreamingCsvQuote(),
+                        config.isStreamingCsvHasHeader(),
+                        config.isStreamingAddOutputToVariable(),
+                        config.isStreamingAddHeadersToEachResult());
+            case VFSConstants.STREAMING_FORMAT_TEXT:
+                return new TextStreamingProcessor(
+                        config.getStreamingBufferSize(),
+                        config.isStreamingAddOutputToVariable());
+            case VFSConstants.STREAMING_FORMAT_JSON:
+                return new JSONStreamingProcessor(
+                        config.getStreamingBufferSize(),
+                        config.getStreamingJsonPath(),
+                        config.isStreamingAddOutputToVariable());
+            // XML processor is not implemented yet.
+            default:
+                return null;
+        }
     }
 }

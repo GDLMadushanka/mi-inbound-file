@@ -67,19 +67,10 @@ public class CSVStreamingIntegrationTest {
 
                 Assert.assertTrue("Record should be valid", record.isValid());
 
-                // Verify variableData contains headers and payload
+                // Record mode with headers: payload is a JSON object keyed by header names.
                 Map<String, Object> variableData = record.getVariableData();
                 Assert.assertNotNull("VariableData should not be null", variableData);
-                Assert.assertNotNull("Headers should be present", variableData.get("headers"));
                 Assert.assertNotNull("Payload should be present", variableData.get("payload"));
-
-                String[] headers = (String[]) variableData.get("headers");
-                Assert.assertEquals("Should have 5 headers", 5, headers.length);
-                Assert.assertEquals("First header should be 'ID'", "ID", headers[0]);
-                Assert.assertEquals("Second header should be 'Name'", "Name", headers[1]);
-                Assert.assertEquals("Third header should be 'Email'", "Email", headers[2]);
-                Assert.assertEquals("Fourth header should be 'Department'", "Department", headers[3]);
-                Assert.assertEquals("Fifth header should be 'Salary'", "Salary", headers[4]);
 
                 if (recordCount == 10) {
                     @SuppressWarnings("unchecked")
@@ -101,9 +92,10 @@ public class CSVStreamingIntegrationTest {
     public void testReadSampleCSVInBatchMode() throws Exception {
         File csvFile = getTestFile("sample.csv");
 
-        // Batch mode: 3 rows per chunk with metadata
+        // Batch mode: 3 rows per chunk with metadata. addHeadersToEachResult=true selects the
+        // array-of-objects payload shape (keyed by header names) in chunk mode.
         CSVStreamingProcessor processor = new CSVStreamingProcessor(
-            8192, ',', '"', true, true, false
+            8192, ',', '"', true, true, true
         );
 
         try (InputStream input = Files.newInputStream(csvFile.toPath())) {
@@ -217,14 +209,9 @@ public class CSVStreamingIntegrationTest {
 
                 Assert.assertTrue("Record should be valid", record.isValid());
 
-                // Verify variableData is populated
+                // Record mode with headers: payload is a JSON object keyed by header names.
                 Map<String, Object> variableData = record.getVariableData();
                 Assert.assertNotNull("VariableData should not be null", variableData);
-
-                String[] headers = (String[]) variableData.get("headers");
-                Assert.assertNotNull("Headers should be present", headers);
-                Assert.assertArrayEquals("Headers should match",
-                    new String[]{"ID", "Name", "Address", "Phone"}, headers);
 
                 @SuppressWarnings("unchecked")
                 Map<String, Object> payload = (Map<String, Object>) variableData.get("payload");
@@ -253,8 +240,9 @@ public class CSVStreamingIntegrationTest {
     public void testReadQuotedCSVInBatchMode() throws Exception {
         File csvFile = getTestFile("sample-quoted.csv");
 
+        // addHeadersToEachResult=true selects the array-of-objects payload shape in chunk mode.
         CSVStreamingProcessor processor = new CSVStreamingProcessor(
-            8192, ',', '"', true, true, false
+            8192, ',', '"', true, true, true
         );
 
         try (InputStream input = Files.newInputStream(csvFile.toPath())) {

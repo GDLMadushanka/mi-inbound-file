@@ -30,6 +30,7 @@ import org.wso2.org.apache.commons.vfs2.FileSystemException;
 import java.net.UnknownHostException;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
+import java.nio.charset.Charset;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -110,6 +111,10 @@ public class VFSConfig {
     private boolean checkSizeIgnoreEmpty;
     private boolean streaming;
     private String streamingMode;
+    private String streamingInputFormat;
+    private String streamingContentType;
+    private String streamingCharset;
+    private String streamingJsonPath;
     private int streamingBufferSize;
     private int streamingChunkSize;
     private String streamingOutputVariable;
@@ -179,6 +184,10 @@ public class VFSConfig {
         // Streaming mode and its parameters (only relevant when streaming is enabled).
         this.streamingMode = properties.getProperty(
                 VFSConstants.STREAMING_MODE, VFSConstants.STREAMING_MODE_ENTIRE_FILE);
+        this.streamingInputFormat = properties.getProperty(
+                VFSConstants.STREAMING_INPUT_FORMAT, VFSConstants.DEFAULT_STREAMING_INPUT_FORMAT);
+        this.streamingJsonPath = properties.getProperty(
+                VFSConstants.STREAMING_JSON_PATH, VFSConstants.DEFAULT_STREAMING_JSON_PATH);
         this.streamingBufferSize = Integer.parseInt(
                 properties.getProperty(VFSConstants.STREAMING_BUFFER_SIZE,
                         String.valueOf(VFSConstants.DEFAULT_STREAMING_BUFFER_SIZE)));
@@ -194,6 +203,19 @@ public class VFSConfig {
                 properties.getProperty(VFSConstants.STREAMING_CSV_QUOTE), '"');
         this.streamingCsvHasHeader = Boolean.parseBoolean(
                 properties.getProperty(VFSConstants.STREAMING_CSV_HAS_HEADER, "true"));
+        this.streamingCharset = properties.getProperty(
+                VFSConstants.STREAMING_CHARSET, VFSConstants.DEFAULT_STREAMING_CHARSET);
+        // In streaming CHUNK/RECORD modes the content type is fixed by the input format. The charset
+        // is a separate, user-configurable axis; fold it into the content type so the streaming
+        // reader (which parses ';charset=') and the message builder both pick it up.
+        String baseContentType = resolveStreamingContentType(this.streamingInputFormat);
+        if (streaming && !VFSConstants.STREAMING_MODE_ENTIRE_FILE.equalsIgnoreCase(streamingMode)) {
+            validateStreamingCharset(this.streamingCharset);
+            this.streamingContentType = baseContentType + "; charset=" + this.streamingCharset;
+            warnOnContentTypeMismatch(baseContentType);
+        } else {
+            this.streamingContentType = baseContentType;
+        }
         this.build = Boolean.parseBoolean(
                 properties.getProperty(VFSConstants.TRANSPORT_BUILD, "false"));
         this.fileLocking = VFSConstants.TRANSPORT_FILE_LOCKING_ENABLED.equalsIgnoreCase(
@@ -495,6 +517,26 @@ public class VFSConfig {
         return streamingMode;
     }
 
+    public String getStreamingInputFormat() {
+        return streamingInputFormat;
+    }
+
+    /**
+     * Content type derived from the streaming input format (not user-configurable). Used in
+     * CHUNK/RECORD streaming modes to pick the message builder and the reader charset.
+     */
+    public String getStreamingContentType() {
+        return streamingContentType;
+    }
+
+    public String getStreamingCharset() {
+        return streamingCharset;
+    }
+
+    public String getStreamingJsonPath() {
+        return streamingJsonPath;
+    }
+
     public int getStreamingBufferSize() {
         return streamingBufferSize;
     }
@@ -541,6 +583,63 @@ public class VFSConfig {
      */
     private static char firstCharOrDefault(String value, char fallback) {
         return (value != null && !value.isEmpty()) ? value.charAt(0) : fallback;
+    }
+
+    /**
+     * Map a streaming input format to its canonical content type. Unknown formats fall back to
+     * plain text.
+     */
+    private static String resolveStreamingContentType(String format) {
+        if (format == null) {
+            return VFSConstants.STREAMING_CONTENT_TYPE_TEXT;
+        }
+        switch (format.toLowerCase()) {
+            case VFSConstants.STREAMING_FORMAT_CSV:
+                return VFSConstants.STREAMING_CONTENT_TYPE_CSV;
+            case VFSConstants.STREAMING_FORMAT_JSON:
+                return VFSConstants.STREAMING_CONTENT_TYPE_JSON;
+            case VFSConstants.STREAMING_FORMAT_XML:
+                return VFSConstants.STREAMING_CONTENT_TYPE_XML;
+            case VFSConstants.STREAMING_FORMAT_TEXT:
+            default:
+                return VFSConstants.STREAMING_CONTENT_TYPE_TEXT;
+        }
+    }
+
+    /**
+     * Warn at startup if the user configured a Content-Type whose media type differs from the one
+     * implied by the streaming input format (which takes precedence and will be used instead).
+     *
+     * @param baseContentType the format-derived media type, without any charset parameter
+     */
+    private void warnOnContentTypeMismatch(String baseContentType) {
+        if (contentType == null || contentType.trim().isEmpty()) {
+            return;
+        }
+        int semi = contentType.indexOf(';');
+        String userMediaType = (semi > 0 ? contentType.substring(0, semi) : contentType).trim();
+        if (!userMediaType.equalsIgnoreCase(baseContentType)) {
+            log.warn("Configured Content-Type '" + contentType + "' is ignored while streaming "
+                    + "input format '" + streamingInputFormat + "'. Using '" + baseContentType
+                    + "' instead.");
+        }
+    }
+
+    /**
+     * Validate the configured streaming charset, failing fast with a clear message on an unknown
+     * or malformed charset name.
+     */
+    private static void validateStreamingCharset(String name) {
+        boolean supported;
+        try {
+            supported = Charset.isSupported(name);
+        } catch (IllegalArgumentException e) {
+            supported = false;  // malformed charset name
+        }
+        if (!supported) {
+            throw new IllegalArgumentException("Unsupported " + VFSConstants.STREAMING_CHARSET
+                    + " value: '" + name + "'");
+        }
     }
 
     public int getMaxRetryCount() {

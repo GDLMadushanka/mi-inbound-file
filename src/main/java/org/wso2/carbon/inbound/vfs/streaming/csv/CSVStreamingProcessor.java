@@ -26,6 +26,7 @@ import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
 
@@ -48,7 +49,7 @@ public class CSVStreamingProcessor extends ChunkedDataProcessor {
     private boolean hasHeader = true;
     private int chunkSize = 1;  // Number of rows per chunk in batch mode.
     private boolean addOutputToVariable = false;  // Add output to variable (metadata) of body
-    private boolean addHeadersToEachResult = false; // Add header to each result row or chunk
+    private boolean addHeadersToEachResult = true; // Add header to each result row or chunk
 
     public CSVStreamingProcessor(int bufferSize, char delimiter, char quoteChar, boolean hasHeader,
         boolean addOutputToVariable, boolean addHeadersToEachResult) {
@@ -239,8 +240,13 @@ public class CSVStreamingProcessor extends ChunkedDataProcessor {
             chunk.setEncoding(charset);
 
             if (addOutputToVariable) {
-                chunk.putMetadata("headers", headers);
-                chunk.putMetadata("payload", new ArrayList<HashMap<String, Object>>());
+                if (addHeadersToEachResult && headers != null && headers.length > 0) {
+                    // [{"ID":"1","Name":"John"},{"ID":"2","Name":"Jane"}]
+                    chunk.putMetadata("payload", new ArrayList<HashMap<String, Object>>());
+                } else {
+                    // [["1","John"],["2","Jane"]]
+                    chunk.putMetadata("payload", new ArrayList<ArrayList<String>>());
+                }
             }
 
             int rowsInChunk = 0;
@@ -256,7 +262,7 @@ public class CSVStreamingProcessor extends ChunkedDataProcessor {
                 streamRecord.setValid(true);
 
                 if (addOutputToVariable) {
-                    if (headers != null && headers.length > 0) {
+                    if (addHeadersToEachResult && headers != null && headers.length > 0) {
                         @SuppressWarnings("unchecked")
                         ArrayList<HashMap<String, Object>> payload =
                             (ArrayList<HashMap<String, Object>>)chunk.getMetadata().get("payload");
@@ -268,11 +274,11 @@ public class CSVStreamingProcessor extends ChunkedDataProcessor {
                     } else {
                         // If no headers, store the row as a list of values
                         @SuppressWarnings("unchecked")
-                        ArrayList<HashMap<String, Object>> payload =
-                            (ArrayList<HashMap<String, Object>>)chunk.getMetadata().get("payload");
-                        HashMap<String, Object> rowData = new HashMap<>();
+                        ArrayList<ArrayList<String>> payload =
+                            (ArrayList<ArrayList<String>>)chunk.getMetadata().get("payload");
+                        ArrayList<String> rowData = new ArrayList<>();
                         for (int i = 0; i < record.size(); i++) {
-                            rowData.put(String.valueOf(i), record.get(i));
+                            rowData.add(record.get(i));
                         }
                         payload.add(rowsInChunk -1, rowData);
                     }
@@ -367,20 +373,21 @@ public class CSVStreamingProcessor extends ChunkedDataProcessor {
                 streamRecord.setValid(true);
 
                 if (addOutputToVariable) {
-                    streamRecord.putMetadata("headers", headers);
                     if (headers != null && headers.length > 0) {
-                        Map<String, String> recordMetadata = new HashMap<>();
+                        Map<String, String> payload = new HashMap<>();
                         for (int i = 0; i < headers.length && i < record.size(); i++) {
-                            recordMetadata.put(headers[i], record.get(i));
+                            payload.put(headers[i], record.get(i));
                         }
-                        streamRecord.putMetadata("payload", recordMetadata);
+                        // {"ID":"1","Name":"John"}
+                        streamRecord.putMetadata("payload", payload);
                     } else {
                         // If no headers, store the row as a list of values
-                        Map<String, String> recordMetadata = new HashMap<>();
+                        List<String> payload = new ArrayList<>();
                         for (int i = 0; i < record.size(); i++) {
-                            recordMetadata.put(String.valueOf(i), record.get(i));
+                            payload.add(record.get(i));
                         }
-                        streamRecord.putMetadata("payload", recordMetadata);
+                        // ["1","John"]
+                        streamRecord.putMetadata("payload", payload);
                     }
                 } else {
                     String recordContent = buildRecordContent(record);
@@ -403,7 +410,6 @@ public class CSVStreamingProcessor extends ChunkedDataProcessor {
                     log.debug(
                         "Row-by-row mode: Record " + streamRecord.getRecordNumber() + " parsed");
                 }
-
                 return streamRecord;
 
             } catch (Exception e) {
@@ -414,7 +420,6 @@ public class CSVStreamingProcessor extends ChunkedDataProcessor {
                 if (log.isWarnEnabled()) {
                     log.warn("CSV parsing error at record " + errorRecord.getRecordNumber(), e);
                 }
-
                 return errorRecord;
             }
         }

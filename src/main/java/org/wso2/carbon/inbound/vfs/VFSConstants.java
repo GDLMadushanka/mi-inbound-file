@@ -82,6 +82,25 @@ public class VFSConstants {
     public static final String STREAMING_MODE_CHUNK = "CHUNK";
     public static final String STREAMING_MODE_RECORD = "RECORD";
 
+    /**
+     * Input format of the streamed file, effective in CHUNK and RECORD modes. Determines which
+     * streaming processor is used. Accepted values (case-insensitive): text, csv, json, xml.
+     */
+    public static final String STREAMING_INPUT_FORMAT = "transport.vfs.StreamingInputFormat";
+    public static final String STREAMING_FORMAT_TEXT = "text";
+    public static final String STREAMING_FORMAT_CSV = "csv";
+    public static final String STREAMING_FORMAT_JSON = "json";
+    public static final String STREAMING_FORMAT_XML = "xml";
+    public static final String DEFAULT_STREAMING_INPUT_FORMAT = STREAMING_FORMAT_TEXT;
+
+    // Canonical content types per streaming input format. In streaming CHUNK/RECORD modes the
+    // content type is determined by the input format (used to pick the message builder and the
+    // reader charset); the user-configured transport.vfs.ContentType does not apply.
+    public static final String STREAMING_CONTENT_TYPE_TEXT = "text/plain";
+    public static final String STREAMING_CONTENT_TYPE_CSV = "text/csv";
+    public static final String STREAMING_CONTENT_TYPE_JSON = "application/json";
+    public static final String STREAMING_CONTENT_TYPE_XML = "application/xml";
+
     // Buffer size (bytes) used by the streaming reader in CHUNK and RECORD modes.
     public static final String STREAMING_BUFFER_SIZE = "transport.vfs.StreamingBufferSize";
     public static final int DEFAULT_STREAMING_BUFFER_SIZE = 8192;
@@ -90,10 +109,20 @@ public class VFSConstants {
     public static final String STREAMING_CHUNK_SIZE = "transport.vfs.StreamingChunkSize";
     public static final int DEFAULT_STREAMING_CHUNK_SIZE = 1;
 
+    // Charset used to decode the streamed file in CHUNK/RECORD modes. Orthogonal to the input
+    // format; defaults to UTF-8.
+    public static final String STREAMING_CHARSET = "transport.vfs.StreamingCharset";
+    public static final String DEFAULT_STREAMING_CHARSET = "UTF-8";
+
     // Name of the message-context variable to hold the parsed streaming output. When set
     // (non-empty), the parsed fields are placed in this variable and the message body is left
     // empty; when omitted, the raw record/chunk content is set as the message body instead.
     public static final String STREAMING_OUTPUT_VARIABLE = "transport.vfs.StreamingOutputVariable";
+
+    // JSON-specific streaming parameter: the selector that marks which nodes become records.
+    // Supported subset: object navigation with a single wildcard, e.g. $[*], $.store.books[*].
+    public static final String STREAMING_JSON_PATH = "transport.vfs.StreamingJsonPath";
+    public static final String DEFAULT_STREAMING_JSON_PATH = "$[*]";
 
     // CSV-specific streaming parameters.
     public static final String STREAMING_CSV_DELIMITER = "transport.vfs.StreamingCsvDelimiter";

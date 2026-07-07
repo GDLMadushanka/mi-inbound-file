@@ -624,12 +624,102 @@
           {
             "type": "attribute",
             "value": {
+              "name": "transport.vfs.StreamingInputFormat",
+              "displayName": "Input Format",
+              "inputType": "combo",
+              "comboValues": [
+                "text",
+                "csv",
+                "json",
+                "xml"
+              ],
+              "defaultValue": "text",
+              "required": "false",
+              "helpTip": "Format of the file being streamed. Determines which parser is used and which format-specific options apply.",
+              "enableCondition": [
+                "AND",
+                {
+                  "transport.vfs.Streaming": true
+                },
+                [
+                  "OR",
+                  {
+                    "transport.vfs.StreamingMode": "CHUNK"
+                  },
+                  {
+                    "transport.vfs.StreamingMode": "RECORD"
+                  }
+                ]
+              ]
+            }
+          },
+          {
+            "type": "attribute",
+            "value": {
+              "name": "transport.vfs.StreamingJsonPath",
+              "displayName": "JSON Path",
+              "inputType": "string",
+              "defaultValue": "$[*]",
+              "required": "false",
+              "helpTip": "Selector marking which JSON nodes become records, e.g. $[*] or $.store.books[*]. Supports object navigation with a single wildcard; recursive descent, filters and array indexes are not supported.",
+              "enableCondition": [
+                "AND",
+                {
+                  "transport.vfs.Streaming": true
+                },
+                [
+                  "AND",
+                  {
+                    "transport.vfs.StreamingInputFormat": "json"
+                  },
+                  [
+                    "OR",
+                    {
+                      "transport.vfs.StreamingMode": "CHUNK"
+                    },
+                    {
+                      "transport.vfs.StreamingMode": "RECORD"
+                    }
+                  ]
+                ]
+              ]
+            }
+          },
+          {
+            "type": "attribute",
+            "value": {
               "name": "transport.vfs.StreamingBufferSize",
               "displayName": "Streaming Buffer Size (bytes)",
               "inputType": "string",
               "defaultValue": "8192",
               "required": "false",
               "helpTip": "Read buffer size in bytes used by the streaming reader.",
+              "enableCondition": [
+                "AND",
+                {
+                  "transport.vfs.Streaming": true
+                },
+                [
+                  "OR",
+                  {
+                    "transport.vfs.StreamingMode": "CHUNK"
+                  },
+                  {
+                    "transport.vfs.StreamingMode": "RECORD"
+                  }
+                ]
+              ]
+            }
+          },
+          {
+            "type": "attribute",
+            "value": {
+              "name": "transport.vfs.StreamingCharset",
+              "displayName": "Streaming Charset",
+              "inputType": "string",
+              "defaultValue": "UTF-8",
+              "required": "false",
+              "helpTip": "Charset used to decode the streamed file, e.g. UTF-8, UTF-16, ISO-8859-1. Independent of the input format.",
               "enableCondition": [
                 "AND",
                 {
@@ -694,10 +784,37 @@
             }
           },
           {
-            "type": "attribute",
+            "type": "attributeGroup",
             "value": {
-              "name": "transport.vfs.StreamingCsvHasHeader",
-              "displayName": "CSV Has Header",
+              "groupName": "CSV Configuration",
+              "isCollapsed": false,
+              "enableCondition": [
+                "AND",
+                {
+                  "transport.vfs.Streaming": true
+                },
+                [
+                  "AND",
+                  {
+                    "transport.vfs.StreamingInputFormat": "csv"
+                  },
+                  [
+                    "OR",
+                    {
+                      "transport.vfs.StreamingMode": "CHUNK"
+                    },
+                    {
+                      "transport.vfs.StreamingMode": "RECORD"
+                    }
+                  ]
+                ]
+              ],
+              "elements": [
+                {
+                  "type": "attribute",
+                  "value": {
+                    "name": "transport.vfs.StreamingCsvHasHeader",
+                    "displayName": "CSV Has Header",
               "inputType": "checkbox",
               "defaultValue": true,
               "required": "false",
@@ -708,13 +825,19 @@
                   "transport.vfs.Streaming": true
                 },
                 [
-                  "OR",
+                  "AND",
                   {
-                    "transport.vfs.StreamingMode": "CHUNK"
+                    "transport.vfs.StreamingInputFormat": "csv"
                   },
-                  {
-                    "transport.vfs.StreamingMode": "RECORD"
-                  }
+                  [
+                    "OR",
+                    {
+                      "transport.vfs.StreamingMode": "CHUNK"
+                    },
+                    {
+                      "transport.vfs.StreamingMode": "RECORD"
+                    }
+                  ]
                 ]
               ]
             }
@@ -734,13 +857,19 @@
                   "transport.vfs.Streaming": true
                 },
                 [
-                  "OR",
+                  "AND",
                   {
-                    "transport.vfs.StreamingMode": "CHUNK"
+                    "transport.vfs.StreamingInputFormat": "csv"
                   },
-                  {
-                    "transport.vfs.StreamingMode": "RECORD"
-                  }
+                  [
+                    "OR",
+                    {
+                      "transport.vfs.StreamingMode": "CHUNK"
+                    },
+                    {
+                      "transport.vfs.StreamingMode": "RECORD"
+                    }
+                  ]
                 ]
               ]
             }
@@ -760,13 +889,19 @@
                   "transport.vfs.Streaming": true
                 },
                 [
-                  "OR",
+                  "AND",
                   {
-                    "transport.vfs.StreamingMode": "CHUNK"
+                    "transport.vfs.StreamingInputFormat": "csv"
                   },
-                  {
-                    "transport.vfs.StreamingMode": "RECORD"
-                  }
+                  [
+                    "OR",
+                    {
+                      "transport.vfs.StreamingMode": "CHUNK"
+                    },
+                    {
+                      "transport.vfs.StreamingMode": "RECORD"
+                    }
+                  ]
                 ]
               ]
             }
@@ -785,8 +920,23 @@
                 {
                   "transport.vfs.Streaming": true
                 },
-                {
-                  "transport.vfs.StreamingMode": "RECORD"
+                [
+                  "AND",
+                  {
+                    "transport.vfs.StreamingInputFormat": "csv"
+                  },
+                  [
+                    "OR",
+                    {
+                      "transport.vfs.StreamingMode": "CHUNK"
+                    },
+                    {
+                      "transport.vfs.StreamingMode": "RECORD"
+                    }
+                  ]
+                ]
+              ]
+                  }
                 }
               ]
             }

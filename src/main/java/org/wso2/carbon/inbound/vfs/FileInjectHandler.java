@@ -20,6 +20,7 @@ package org.wso2.carbon.inbound.vfs;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonElement;
+import java.util.HashMap;
 import org.apache.axiom.om.OMAbstractFactory;
 import org.apache.axiom.om.OMElement;
 import org.apache.axiom.om.util.UUIDGenerator;
@@ -255,10 +256,13 @@ public class FileInjectHandler {
      * @return true if every chunk/record was injected without error
      */
     private boolean invokeStreaming(FileObject file, String name, boolean chunkMode) {
-        String contentType = resolveContentType(file);
-        StreamingProcessor processor = StreamingProcessorFactory.getProcessor(contentType, vfsProperties);
+        // In streaming modes the content type is fixed by the input format (not the user-configured
+        // transport.vfs.ContentType), and drives both the reader charset and the message builder.
+        String contentType = vfsProperties.getStreamingContentType();
+        String inputFormat = vfsProperties.getStreamingInputFormat();
+        StreamingProcessor processor = StreamingProcessorFactory.getProcessor(inputFormat, vfsProperties);
         if (processor == null) {
-            log.error("No streaming processor found for content type '" + contentType
+            log.error("No streaming processor found for input format '" + inputFormat
                     + "'. Cannot stream file: " + file.getName().getBaseName());
             return false;
         }
@@ -339,18 +343,11 @@ public class FileInjectHandler {
 
         if (variableOutput != null) {
             // Setting the output to a variable.
-            // Re-use the connector response structure to hold the headers and payload.
-            ConnectorResponse response = new DefaultConnectorResponse();
+            Map<String, Object> response = new HashMap<>();
             Map<String, Object> output = (Map<String, Object>)variableOutput;
-            String[] headers = (String[]) output.get("headers");
-            int index = 0;
-            for (String header : headers) {
-                response.addHeader(String.valueOf(index), header);
-                index++;
-            }
             Gson gson = new Gson();
             JsonElement jsonElement = gson.toJsonTree(output.get("payload"));
-            response.setPayload(jsonElement);
+            response.put("payload", jsonElement);
             msgCtx.setVariable(vfsProperties.getStreamingOutputVariable(), response);
             // add empty SOAP envelope.
             SOAPEnvelope envelope = OMAbstractFactory.getSOAP12Factory().getDefaultEnvelope();
@@ -391,25 +388,6 @@ public class FileInjectHandler {
         String errorCode = (responseHeaders != null)
                 ? (String) responseHeaders.get(VFSConstants.ERROR_CODE) : null;
         return StringUtils.isEmpty(errorCode);
-    }
-
-    /**
-     * Resolve the effective content type for the given file: the explicitly configured
-     * content type if present, otherwise a best-effort guess from the file extension.
-     */
-    private String resolveContentType(FileObject file) {
-        String contentType = vfsProperties.getContentType();
-        if (contentType == null || contentType.trim().isEmpty()) {
-            String extension = file.getName().getExtension().toLowerCase();
-            if (extension.endsWith("xml")) {
-                contentType = "text/xml";
-            } else if (extension.endsWith("csv")) {
-                contentType = "text/csv";
-            } else if (extension.endsWith("txt")) {
-                contentType = "text/plain";
-            }
-        }
-        return contentType;
     }
 
     /**
