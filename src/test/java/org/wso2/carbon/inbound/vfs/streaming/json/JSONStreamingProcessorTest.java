@@ -141,15 +141,6 @@ public class JSONStreamingProcessorTest {
         Assert.assertFalse(it.hasNext());
     }
 
-    @Test
-    public void testCanProcess() {
-        JSONStreamingProcessor processor = new JSONStreamingProcessor(8192, "$[*]", false);
-        Assert.assertTrue(processor.canProcess("application/json"));
-        Assert.assertTrue(processor.canProcess("text/json; charset=UTF-8"));
-        Assert.assertFalse(processor.canProcess("text/csv"));
-        Assert.assertFalse(processor.canProcess(null));
-    }
-
     @Test(expected = StreamingException.class)
     public void testRejectRecursiveDescent() throws StreamingException {
         new JSONStreamingProcessor(8192, "$..book", true)

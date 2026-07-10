@@ -57,18 +57,6 @@ public class TextStreamingProcessor extends ChunkedDataProcessor {
     }
 
     @Override
-    public boolean canProcess(String contentType) {
-        if (contentType == null) {
-            return false;
-        }
-        String lower = contentType.toLowerCase();
-        return lower.startsWith("text/")
-            || lower.contains("text/plain")
-            || lower.endsWith(".txt")
-            || lower.endsWith(".log");
-    }
-
-    @Override
     public Iterator<StreamChunk> getChunkIterator(InputStream input, String contentType, int chunkSize)
         throws StreamingException {
         try {

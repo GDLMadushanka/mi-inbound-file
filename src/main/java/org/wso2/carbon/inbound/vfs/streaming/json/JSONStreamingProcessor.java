@@ -74,15 +74,6 @@ public class JSONStreamingProcessor extends ChunkedDataProcessor {
     }
 
     @Override
-    public boolean canProcess(String contentType) {
-        if (contentType == null) {
-            return false;
-        }
-        String lower = contentType.toLowerCase();
-        return lower.contains("json") || lower.endsWith(".json");
-    }
-
-    @Override
     public Iterator<StreamChunk> getChunkIterator(InputStream input, String contentType, int chunkSize)
         throws StreamingException {
         CompiledPath path = CompiledPath.compile(jsonPath);

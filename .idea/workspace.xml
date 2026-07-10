@@ -5,14 +5,13 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="9eac94a6-1bbe-4893-9c44-b287ecdfa4f4" name="Changes" comment="">
-      <change beforePath="$PROJECT_DIR$/pom.xml" beforeDir="false" afterPath="$PROJECT_DIR$/pom.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/org/wso2/carbon/inbound/vfs/FileInjectHandler.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/org/wso2/carbon/inbound/vfs/FileInjectHandler.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/org/wso2/carbon/inbound/vfs/VFSConfig.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/org/wso2/carbon/inbound/vfs/VFSConfig.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/org/wso2/carbon/inbound/vfs/VFSConstants.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/org/wso2/carbon/inbound/vfs/VFSConstants.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/main/java/org/wso2/carbon/inbound/vfs/streaming/StreamingProcessor.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/org/wso2/carbon/inbound/vfs/streaming/StreamingProcessor.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/main/java/org/wso2/carbon/inbound/vfs/streaming/csv/CSVStreamingProcessor.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/org/wso2/carbon/inbound/vfs/streaming/csv/CSVStreamingProcessor.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/resources/descriptor.yml" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/resources/descriptor.yml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/resources/uischema.json" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/resources/uischema.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/org/wso2/carbon/inbound/vfs/streaming/json/JSONStreamingProcessor.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/org/wso2/carbon/inbound/vfs/streaming/json/JSONStreamingProcessor.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/org/wso2/carbon/inbound/vfs/streaming/text/TextStreamingProcessor.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/org/wso2/carbon/inbound/vfs/streaming/text/TextStreamingProcessor.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/test/java/org/wso2/carbon/inbound/vfs/streaming/json/JSONStreamingProcessorTest.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/test/java/org/wso2/carbon/inbound/vfs/streaming/json/JSONStreamingProcessorTest.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/test/java/org/wso2/carbon/inbound/vfs/streaming/text/TextStreamingProcessorTest.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/test/java/org/wso2/carbon/inbound/vfs/streaming/text/TextStreamingProcessorTest.java" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -188,11 +187,6 @@
           <url>file://$PROJECT_DIR$/src/test/java/org/wso2/carbon/inbound/vfs/streaming/csv/CSVStreamingIntegrationTest.java</url>
           <line>83</line>
           <option name="timeStamp" value="9" />
-        </line-breakpoint>
-        <line-breakpoint enabled="true" type="java-line">
-          <url>file://$PROJECT_DIR$/src/test/java/org/wso2/carbon/inbound/vfs/streaming/csv/CSVStreamingIntegrationTest.java</url>
-          <line>75</line>
-          <option name="timeStamp" value="10" />
         </line-breakpoint>
         <line-breakpoint enabled="true" type="java-line">
           <url>file://$PROJECT_DIR$/src/test/java/org/wso2/carbon/inbound/vfs/streaming/csv/CSVStreamingIntegrationTest.java</url>

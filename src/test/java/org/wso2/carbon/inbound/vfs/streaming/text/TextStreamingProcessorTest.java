@@ -126,13 +126,4 @@ public class TextStreamingProcessorTest {
         Iterator<StreamRecord> it = processor.getRecordIterator(stream(""), "text/plain");
         Assert.assertFalse(it.hasNext());
     }
-
-    @Test
-    public void testCanProcess() {
-        TextStreamingProcessor processor = new TextStreamingProcessor(8192, false);
-        Assert.assertTrue(processor.canProcess("text/plain"));
-        Assert.assertTrue(processor.canProcess("text/csv"));
-        Assert.assertFalse(processor.canProcess("application/json"));
-        Assert.assertFalse(processor.canProcess(null));
-    }
 }

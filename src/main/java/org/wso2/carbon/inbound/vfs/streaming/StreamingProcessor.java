@@ -24,15 +24,6 @@ import java.util.Iterator;
 public interface StreamingProcessor {
 
     /**
-     * Check whether this processor can handle the given content type. Used by the
-     * processor selection layer to pick a processor for a file being streamed.
-     *
-     * @param contentType the MIME type (may be null)
-     * @return true if this processor supports the content type
-     */
-    boolean canProcess(String contentType);
-
-    /**
      * Get an iterator of chunks (batches of records) from the input stream.
      * Use this for batch processing (multiple rows per chunk).
      * <p>
