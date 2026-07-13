@@ -5,11 +5,21 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="9eac94a6-1bbe-4893-9c44-b287ecdfa4f4" name="Changes" comment="">
+      <change afterPath="$PROJECT_DIR$/src/main/java/org/wso2/carbon/inbound/vfs/streaming/StreamingConstants.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/org/wso2/carbon/inbound/vfs/streaming/StreamingProcessor.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/org/wso2/carbon/inbound/vfs/streaming/StreamingProcessor.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/pom.xml" beforeDir="false" afterPath="$PROJECT_DIR$/pom.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/org/wso2/carbon/inbound/vfs/FileInjectHandler.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/org/wso2/carbon/inbound/vfs/FileInjectHandler.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/org/wso2/carbon/inbound/vfs/Utils.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/org/wso2/carbon/inbound/vfs/Utils.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/org/wso2/carbon/inbound/vfs/VFSConfig.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/org/wso2/carbon/inbound/vfs/VFSConfig.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/org/wso2/carbon/inbound/vfs/VFSConstants.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/org/wso2/carbon/inbound/vfs/VFSConstants.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/org/wso2/carbon/inbound/vfs/streaming/StreamChunk.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/org/wso2/carbon/inbound/vfs/streaming/StreamChunk.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/org/wso2/carbon/inbound/vfs/streaming/StreamRecord.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/org/wso2/carbon/inbound/vfs/streaming/StreamRecord.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/org/wso2/carbon/inbound/vfs/streaming/StreamingException.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/org/wso2/carbon/inbound/vfs/streaming/StreamingException.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/org/wso2/carbon/inbound/vfs/streaming/StreamingProcessorFactory.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/org/wso2/carbon/inbound/vfs/streaming/StreamingProcessorFactory.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/main/java/org/wso2/carbon/inbound/vfs/streaming/csv/CSVStreamingProcessor.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/org/wso2/carbon/inbound/vfs/streaming/csv/CSVStreamingProcessor.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/main/java/org/wso2/carbon/inbound/vfs/streaming/json/JSONStreamingProcessor.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/org/wso2/carbon/inbound/vfs/streaming/json/JSONStreamingProcessor.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/main/java/org/wso2/carbon/inbound/vfs/streaming/text/TextStreamingProcessor.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/org/wso2/carbon/inbound/vfs/streaming/text/TextStreamingProcessor.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/test/java/org/wso2/carbon/inbound/vfs/streaming/csv/CSVStreamingIntegrationTest.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/test/java/org/wso2/carbon/inbound/vfs/streaming/csv/CSVStreamingIntegrationTest.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/test/java/org/wso2/carbon/inbound/vfs/streaming/json/JSONStreamingProcessorTest.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/test/java/org/wso2/carbon/inbound/vfs/streaming/json/JSONStreamingProcessorTest.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/test/java/org/wso2/carbon/inbound/vfs/streaming/text/TextStreamingProcessorTest.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/test/java/org/wso2/carbon/inbound/vfs/streaming/text/TextStreamingProcessorTest.java" afterDir="false" />
     </list>
@@ -24,6 +34,13 @@
       <entry key="_/Users/lahirumadushanka/Documents/repo/mi-inbound-file" value="3FehM6zYFkcAi6FUqxLwDf91ltd" />
     </persistenceIdMap>
   </component>
+  <component name="FileTemplateManagerImpl">
+    <option name="RECENT_TEMPLATES">
+      <list>
+        <option value="Class" />
+      </list>
+    </option>
+  </component>
   <component name="Git.Settings">
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
   </component>
@@ -35,23 +52,26 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent">{
-  &quot;keyToString&quot;: {
-    &quot;JUnit.CSVStreamingIntegrationTest.executor&quot;: &quot;Run&quot;,
-    &quot;JUnit.CSVStreamingIntegrationTest.testReadSampleCSVInBatchMode.executor&quot;: &quot;Run&quot;,
-    &quot;JUnit.CSVStreamingIntegrationTest.testReadSampleCSVRowByRow.executor&quot;: &quot;Run&quot;,
-    &quot;JUnit.CSVStreamingIntegrationTest.testReadSampleCSVRowByRowWithoutHeadersInEachRecord.executor&quot;: &quot;Run&quot;,
-    &quot;JUnit.CSVStreamingIntegrationTest.testReadSampleCSVRowByRowWithoutVariableOutput.executor&quot;: &quot;Run&quot;,
-    &quot;JUnit.CSVStreamingProcessorTest.testSimpleCSVParsing.executor&quot;: &quot;Debug&quot;,
-    &quot;ModuleVcsDetector.initialDetectionPerformed&quot;: &quot;true&quot;,
-    &quot;Remote JVM Debug.Unnamed.executor&quot;: &quot;Debug&quot;,
-    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
-    &quot;git-widget-placeholder&quot;: &quot;streaming&quot;,
-    &quot;kotlin-language-version-configured&quot;: &quot;true&quot;
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "JUnit.CSVStreamingIntegrationTest.executor": "Run",
+    "JUnit.CSVStreamingIntegrationTest.testReadSampleCSVInBatchMode.executor": "Run",
+    "JUnit.CSVStreamingIntegrationTest.testReadSampleCSVRowByRow.executor": "Run",
+    "JUnit.CSVStreamingIntegrationTest.testReadSampleCSVRowByRowWithoutHeadersInEachRecord.executor": "Run",
+    "JUnit.CSVStreamingIntegrationTest.testReadSampleCSVRowByRowWithoutVariableOutput.executor": "Run",
+    "JUnit.CSVStreamingProcessorTest.testSimpleCSVParsing.executor": "Debug",
+    "ModuleVcsDetector.initialDetectionPerformed": "true",
+    "Remote JVM Debug.Unnamed.executor": "Debug",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252": "true",
+    "RunOnceActivity.git.unshallow": "true",
+    "git-widget-placeholder": "streaming",
+    "kotlin-language-version-configured": "true",
+    "project.structure.last.edited": "Project",
+    "project.structure.proportion": "0.0",
+    "project.structure.side.proportion": "0.0"
   }
-}</component>
+}]]></component>
   <component name="RunManager" selected="Remote JVM Debug.Unnamed">
     <configuration name="CSVStreamingIntegrationTest" type="JUnit" factoryName="JUnit" temporary="true" nameIsGenerated="true">
       <module name="mi-inbound-file" />
@@ -195,8 +215,33 @@
         </line-breakpoint>
         <line-breakpoint enabled="true" type="java-line">
           <url>file://$PROJECT_DIR$/src/main/java/org/wso2/carbon/inbound/vfs/FileInjectHandler.java</url>
-          <line>350</line>
-          <option name="timeStamp" value="24" />
+          <line>334</line>
+          <option name="timeStamp" value="40" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" type="java-line">
+          <url>file://$PROJECT_DIR$/src/main/java/org/wso2/carbon/inbound/vfs/FileInjectHandler.java</url>
+          <line>297</line>
+          <option name="timeStamp" value="41" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" type="java-line">
+          <url>file://$PROJECT_DIR$/src/main/java/org/wso2/carbon/inbound/vfs/streaming/json/JSONStreamingProcessor.java</url>
+          <line>233</line>
+          <option name="timeStamp" value="42" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" type="java-line">
+          <url>file://$PROJECT_DIR$/src/main/java/org/wso2/carbon/inbound/vfs/FileInjectHandler.java</url>
+          <line>322</line>
+          <option name="timeStamp" value="43" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" type="java-line">
+          <url>file://$PROJECT_DIR$/src/main/java/org/wso2/carbon/inbound/vfs/streaming/csv/CSVStreamingProcessor.java</url>
+          <line>387</line>
+          <option name="timeStamp" value="44" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" type="java-line">
+          <url>file://$PROJECT_DIR$/src/main/java/org/wso2/carbon/inbound/vfs/streaming/StreamChunk.java</url>
+          <line>46</line>
+          <option name="timeStamp" value="45" />
         </line-breakpoint>
       </breakpoints>
     </breakpoint-manager>

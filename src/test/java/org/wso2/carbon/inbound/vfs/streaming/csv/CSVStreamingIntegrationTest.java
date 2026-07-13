@@ -68,7 +68,7 @@ public class CSVStreamingIntegrationTest {
                 Assert.assertTrue("Record should be valid", record.isValid());
 
                 // Record mode with headers: payload is a JSON object keyed by header names.
-                Map<String, Object> variableData = record.getVariableData();
+                Map<String, Object> variableData = record.getJSONPayload();
                 Assert.assertNotNull("VariableData should not be null", variableData);
                 Assert.assertNotNull("Payload should be present", variableData.get("payload"));
 
@@ -124,7 +124,7 @@ public class CSVStreamingIntegrationTest {
                 if (chunkCount == 2) {
                     @SuppressWarnings("unchecked")
                     ArrayList<HashMap<String, Object>> payload =
-                        (ArrayList<HashMap<String, Object>>) chunk.getMetadata().get("payload");
+                        (ArrayList<HashMap<String, Object>>) chunk.getJSONPayload().get("payload");
                     HashMap<String, Object> fifthRecord = payload.get(1);
                     Assert.assertEquals("5", fifthRecord.get("ID"));
                     Assert.assertEquals("Charlie Brown", fifthRecord.get("Name"));
@@ -210,7 +210,7 @@ public class CSVStreamingIntegrationTest {
                 Assert.assertTrue("Record should be valid", record.isValid());
 
                 // Record mode with headers: payload is a JSON object keyed by header names.
-                Map<String, Object> variableData = record.getVariableData();
+                Map<String, Object> variableData = record.getJSONPayload();
                 Assert.assertNotNull("VariableData should not be null", variableData);
 
                 @SuppressWarnings("unchecked")
@@ -264,7 +264,7 @@ public class CSVStreamingIntegrationTest {
                 // Verify quoted fields with embedded commas are parsed correctly
                 @SuppressWarnings("unchecked")
                 ArrayList<HashMap<String, Object>> payload =
-                    (ArrayList<HashMap<String, Object>>) chunk.getMetadata().get("payload");
+                    (ArrayList<HashMap<String, Object>>) chunk.getJSONPayload().get("payload");
                 Assert.assertNotNull("Payload should be present", payload);
                 Assert.assertEquals("Payload should have 5 records", 5, payload.size());
 

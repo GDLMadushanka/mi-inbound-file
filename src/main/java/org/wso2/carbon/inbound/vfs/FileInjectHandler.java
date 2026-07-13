@@ -18,9 +18,10 @@
 
 package org.wso2.carbon.inbound.vfs;
 
-import com.google.gson.Gson;
 import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
 import java.util.HashMap;
+import kafka.utils.Json;
 import org.apache.axiom.om.OMAbstractFactory;
 import org.apache.axiom.om.OMElement;
 import org.apache.axiom.om.util.UUIDGenerator;
@@ -39,16 +40,15 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.synapse.SynapseConstants;
-import org.apache.synapse.SynapseException;
 import org.apache.synapse.commons.vfs.VFSConstants;
 import org.apache.synapse.core.SynapseEnvironment;
-import org.apache.synapse.data.connector.ConnectorResponse;
-import org.apache.synapse.data.connector.DefaultConnectorResponse;
 import org.apache.synapse.inbound.InboundEndpoint;
 import org.apache.synapse.mediators.base.SequenceMediator;
 import org.apache.synapse.transport.customlogsetter.CustomLogSetter;
 import org.wso2.carbon.inbound.vfs.streaming.StreamChunk;
 import org.wso2.carbon.inbound.vfs.streaming.StreamRecord;
+import org.wso2.carbon.inbound.vfs.streaming.StreamingConstants;
+import org.wso2.carbon.inbound.vfs.streaming.StreamingException;
 import org.wso2.carbon.inbound.vfs.streaming.StreamingProcessor;
 import org.wso2.carbon.inbound.vfs.streaming.StreamingProcessorFactory;
 import org.wso2.org.apache.commons.vfs2.FileObject;
@@ -274,26 +274,65 @@ public class FileInjectHandler {
                 Iterator<StreamChunk> iterator =
                         processor.getChunkIterator(in, contentType, vfsProperties.getStreamingChunkSize());
                 while (iterator.hasNext()) {
-                    StreamChunk chunk = iterator.next();
-                    Object variableOutput = addOutputToVariable ? chunk.getMetadata() : null;
-                    byte[] body = addOutputToVariable ? null : buildChunkBody(chunk);
-                    if (!injectStreamingMessage(name, contentType, body, variableOutput)) {
-                        return false;
+                    try {
+                        StreamChunk chunk = iterator.next();
+                        Map<String, Object> variableOutputMap = new HashMap<>();
+                        byte[] body = addOutputToVariable ? null : buildChunkBody(chunk);
+                        JsonObject attributes = new JsonObject();
+                        attributes.addProperty(StreamingConstants.FIRST_RECORD_IN_CHUNK,
+                            chunk.getFirstRecordNumber());
+                        attributes.addProperty(StreamingConstants.LAST_RECORD_IN_CHUNK,
+                            chunk.getLastRecordNumber());
+                        attributes.addProperty(StreamingConstants.CHUNK_SIZE,
+                            chunk.getRecordCount());
+                        attributes.addProperty(StreamingConstants.CHUNK_NUMBER,
+                            chunk.getChunkNumber());
+                        variableOutputMap.put(StreamingConstants.ATTRIBUTES, attributes);
+                        if (addOutputToVariable) {
+                            variableOutputMap.put(StreamingConstants.PAYLOAD, chunk.getJSONPayload());
+                        }
+                        if (!injectStreamingMessage(name, contentType, body, variableOutputMap)) {
+                            return false;
+                        }
+                    } catch (StreamingException ex) {
+                        if (ex.isRecoverable()) {
+                            log.warn("Recoverable streaming error at row " + ex.getRowNumber()
+                                + ". Continuing with next chunk.", ex);
+                        } else {
+                            log.error("Unrecoverable streaming error at row " + ex.getRowNumber()
+                                + ". Aborting processing the file : " + file.getName(), ex);
+                            return false;
+                        }
                     }
                 }
             } else {
                 Iterator<StreamRecord> iterator = processor.getRecordIterator(in, contentType);
                 while (iterator.hasNext()) {
-                    StreamRecord record = iterator.next();
-                    Object variableOutput = addOutputToVariable ? record.getVariableData() : null;
-                    byte[] body = addOutputToVariable ? null : record.getContent();
-                    if (!injectStreamingMessage(name, contentType, body, variableOutput)) {
-                        return false;
+                    try {
+                        StreamRecord record = iterator.next();
+                        Map<String, Object> variableOutputMap = new HashMap<>();
+                        JsonObject attributes = new JsonObject();
+                        attributes.addProperty(StreamingConstants.RECORD_NUMBER,
+                            record.getRecordNumber());
+                        variableOutputMap.put(StreamingConstants.ATTRIBUTES, attributes);
+                        byte[] body = addOutputToVariable ? null : record.getContent();
+                        if (!injectStreamingMessage(name, contentType, body, variableOutputMap)) {
+                            return false;
+                        }
+                    } catch (StreamingException ex) {
+                        if (ex.isRecoverable()) {
+                            log.warn("Recoverable streaming error at row " + ex.getRowNumber()
+                                    + ". Continuing with next record.", ex);
+                        } else {
+                            log.error("Unrecoverable streaming error at row " + ex.getRowNumber()
+                                    + ". Aborting processing the file : " + file.getName(), ex);
+                            return false;
+                        }
                     }
                 }
             }
         } catch (Exception e) {
-            log.error("Error while streaming the file/folder", e);
+            log.error("Error while streaming the file/folder : " + file.getName(), e);
             return false;
         }
         return true;
@@ -328,7 +367,7 @@ public class FileInjectHandler {
      * @return true if the injection completed without an error code
      */
     private boolean injectStreamingMessage(String name, String contentType, byte[] body,
-                                           Object variableOutput) throws Exception {
+        Map<String, Object> variableOutput) throws Exception {
         org.apache.synapse.MessageContext msgCtx = createMessageContext();
         msgCtx.setProperty(SynapseConstants.INBOUND_ENDPOINT_NAME, name);
         msgCtx.setProperty(SynapseConstants.ARTIFACT_NAME,
@@ -341,14 +380,8 @@ public class FileInjectHandler {
         MessageContext axis2MsgCtx = ((org.apache.synapse.core.axis2.Axis2MessageContext) msgCtx)
                 .getAxis2MessageContext();
 
-        if (variableOutput != null) {
-            // Setting the output to a variable.
-            Map<String, Object> response = new HashMap<>();
-            Map<String, Object> output = (Map<String, Object>)variableOutput;
-            Gson gson = new Gson();
-            JsonElement jsonElement = gson.toJsonTree(output.get("payload"));
-            response.put("payload", jsonElement);
-            msgCtx.setVariable(vfsProperties.getStreamingOutputVariable(), response);
+        if (vfsProperties.isStreamingAddOutputToVariable()) {
+            msgCtx.setVariable(vfsProperties.getStreamingOutputVariable(), variableOutput);
             // add empty SOAP envelope.
             SOAPEnvelope envelope = OMAbstractFactory.getSOAP12Factory().getDefaultEnvelope();
             msgCtx.setEnvelope(envelope);

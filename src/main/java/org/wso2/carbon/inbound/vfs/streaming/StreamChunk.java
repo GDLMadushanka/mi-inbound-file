@@ -18,12 +18,11 @@
 
 package org.wso2.carbon.inbound.vfs.streaming;
 
+import com.google.gson.JsonElement;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 
 public class StreamChunk {
 
@@ -32,25 +31,33 @@ public class StreamChunk {
     private long firstRecordNumber;
     private long lastRecordNumber;
     private int recordCount;
+    private int chunkNumber;
 
     // Metadata
-    private Map<String, Object> metadata;
+    private JsonElement JSONPayload;
     private boolean isLastChunk;
     private boolean isValid = true;
     private String parseError;
     private Charset encoding = StandardCharsets.UTF_8;
 
     // Chunk configuration
-    private int chunkSize = 1;  // No of records per chunk;
+    private final int chunkSize;  // No of records per chunk;
 
     public StreamChunk(int chunkSize) {
-        this.metadata = new LinkedHashMap<>();
         this.records = new ArrayList<>();
         this.chunkSize = Math.max(1, chunkSize);
     }
 
-    public Map<String, Object> getMetadata() {
-        return metadata;
+    public int getChunkNumber() {
+        return chunkNumber;
+    }
+
+    public void setChunkNumber(int chunkNumber) {
+        this.chunkNumber = chunkNumber;
+    }
+
+    public JsonElement getJSONPayload() {
+        return JSONPayload;
     }
 
     public boolean isLastChunk() {
@@ -85,11 +92,8 @@ public class StreamChunk {
         this.encoding = encoding != null ? encoding : StandardCharsets.UTF_8;
     }
 
-    public void putMetadata(String key, Object value) {
-        if (metadata == null) {
-            metadata = new LinkedHashMap<>();
-        }
-        metadata.put(key, value);
+    public void setJSONPayload(JsonElement payload) {
+        this.JSONPayload = payload;
     }
 
     // Multi-row chunk support
@@ -142,7 +146,7 @@ public class StreamChunk {
                 ", firstRecordNumber=" + firstRecordNumber +
                 ", lastRecordNumber=" + lastRecordNumber +
                 ", recordCount=" + recordCount +
-                ", metadata=" + metadata +
+                ", metadata=" + JSONPayload +
                 ", isLastChunk=" + isLastChunk +
                 ", isValid=" + isValid +
                 ", parseError='" + parseError + '\'' +

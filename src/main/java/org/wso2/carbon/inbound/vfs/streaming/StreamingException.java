@@ -18,7 +18,25 @@
 
 package org.wso2.carbon.inbound.vfs.streaming;
 
-public class StreamingException extends Exception {
+/**
+ * Signals a failure raised while a stream is being set up or consumed.
+ * <p>
+ * This is an <em>unchecked</em> exception on purpose: streaming content is handed out through
+ * {@link java.util.Iterator}s whose {@code hasNext()}/{@code next()} methods cannot declare checked
+ * exceptions, so a failure discovered mid-iteration (e.g. malformed JSON halfway through a file)
+ * still needs to be able to propagate out to the consumer.
+ * <p>
+ * The {@link #isRecoverable() recoverable} flag distinguishes two very different failures:
+ * <ul>
+ *     <li><b>Not recoverable</b> - the input itself is broken (e.g. malformed JSON). The remaining
+ *     bytes can no longer be interpreted, so there is no point continuing; the file must be handed
+ *     to the configured <em>action after failure</em> (move / delete).</li>
+ *     <li><b>Recoverable</b> - the record parsed fine but something downstream (e.g. mediation of a
+ *     single record) failed. The stream is still structurally intact and processing could, in
+ *     principle, continue with subsequent records.</li>
+ * </ul>
+ */
+public class StreamingException extends RuntimeException {
 
     private long rowNumber;
     private boolean isRecoverable;

@@ -27,8 +27,8 @@ import org.wso2.carbon.inbound.vfs.streaming.text.TextStreamingProcessor;
 /**
  * Selects a {@link StreamingProcessor} based on the configured streaming input format.
  * <p>
- * Only CSV is implemented today. The selection is format-driven so that JSON/XML/TEXT
- * processors can be registered here later without touching callers.
+ * TEXT, CSV, JSON and JSONL are implemented today. The selection is format-driven so that other
+ * processors (e.g. XML) can be registered here later without touching callers.
  */
 public class StreamingProcessorFactory {
 

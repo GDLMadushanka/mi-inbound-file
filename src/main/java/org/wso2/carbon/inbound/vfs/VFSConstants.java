@@ -84,12 +84,13 @@ public class VFSConstants {
 
     /**
      * Input format of the streamed file, effective in CHUNK and RECORD modes. Determines which
-     * streaming processor is used. Accepted values (case-insensitive): text, csv, json, xml.
+     * streaming processor is used. Accepted values (case-insensitive): text, csv, json, jsonl, xml.
      */
     public static final String STREAMING_INPUT_FORMAT = "transport.vfs.StreamingInputFormat";
     public static final String STREAMING_FORMAT_TEXT = "text";
     public static final String STREAMING_FORMAT_CSV = "csv";
     public static final String STREAMING_FORMAT_JSON = "json";
+    public static final String STREAMING_FORMAT_JSONL = "jsonl";
     public static final String STREAMING_FORMAT_XML = "xml";
     public static final String DEFAULT_STREAMING_INPUT_FORMAT = STREAMING_FORMAT_TEXT;
 

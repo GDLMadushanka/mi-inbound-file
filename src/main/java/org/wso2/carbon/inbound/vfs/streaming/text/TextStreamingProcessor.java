@@ -18,14 +18,14 @@
 
 package org.wso2.carbon.inbound.vfs.streaming.text;
 
+import com.google.gson.JsonArray;
+import com.google.gson.JsonPrimitive;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.Charset;
-import java.util.ArrayList;
 import java.util.Iterator;
-import java.util.List;
 import java.util.NoSuchElementException;
 
 import org.apache.commons.logging.Log;
@@ -131,7 +131,7 @@ public class TextStreamingProcessor extends ChunkedDataProcessor {
             record.setValid(true);
 
             if (addOutputToVariable) {
-                record.putMetadata("payload", line);
+                record.setJSONPayload( new JsonPrimitive(line));
             } else {
                 record.setContent(line.getBytes(charset));
             }
@@ -152,6 +152,7 @@ public class TextStreamingProcessor extends ChunkedDataProcessor {
         private final BufferedReader reader;
         private final Charset charset;
         private final int chunkSize;
+        private int chunkNumber = 0;
         private long recordCount = 0;
         private String nextLine;
         private boolean eof = false;
@@ -187,14 +188,15 @@ public class TextStreamingProcessor extends ChunkedDataProcessor {
                 throw new NoSuchElementException("No more lines to iterate");
             }
 
+            chunkNumber++;
             StreamChunk chunk = new StreamChunk(chunkSize);
+            chunk.setChunkNumber(chunkNumber);
             chunk.setEncoding(charset);
 
-            List<String> payload = null;
+            JsonArray resultsArray = null;
             if (addOutputToVariable) {
-                payload = new ArrayList<>();
-                // ["line 1","line 2"]
-                chunk.putMetadata("payload", payload);
+                resultsArray = new JsonArray();
+                chunk.setJSONPayload(resultsArray);
             }
 
             int linesInChunk = 0;
@@ -209,7 +211,7 @@ public class TextStreamingProcessor extends ChunkedDataProcessor {
                 record.setValid(true);
 
                 if (addOutputToVariable) {
-                    payload.add(line);
+                    resultsArray.add(line);
                 } else {
                     record.setContent(line.getBytes(charset));
                 }

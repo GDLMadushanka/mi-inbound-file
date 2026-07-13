@@ -18,6 +18,9 @@
 
 package org.wso2.carbon.inbound.vfs;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonParser;
 import com.hierynomus.msdtyp.AccessMask;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang.WordUtils;
@@ -609,6 +612,13 @@ public class Utils {
                 schemeFileOptions.put(option.toString(), paramValue);
             }
         }
+    }
+
+    public static JsonElement convertJacksonToGson(JsonNode jacksonNode) {
+        if (jacksonNode == null || jacksonNode.isNull()) {
+            return com.google.gson.JsonNull.INSTANCE;
+        }
+        return JsonParser.parseString(jacksonNode.toString());
     }
 
     /**

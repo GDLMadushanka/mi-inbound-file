@@ -597,6 +597,8 @@ public class VFSConfig {
             case VFSConstants.STREAMING_FORMAT_CSV:
                 return VFSConstants.STREAMING_CONTENT_TYPE_CSV;
             case VFSConstants.STREAMING_FORMAT_JSON:
+            case VFSConstants.STREAMING_FORMAT_JSONL:
+                // Each JSONL record is itself a JSON value, so records build as application/json.
                 return VFSConstants.STREAMING_CONTENT_TYPE_JSON;
             case VFSConstants.STREAMING_FORMAT_XML:
                 return VFSConstants.STREAMING_CONTENT_TYPE_XML;

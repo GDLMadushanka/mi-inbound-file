@@ -18,10 +18,9 @@
 
 package org.wso2.carbon.inbound.vfs.streaming;
 
+import com.google.gson.JsonElement;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
-import java.util.LinkedHashMap;
-import java.util.Map;
 
 /**
  * Represents a single record in the streaming datasource. If CSV, this would represent a single row.
@@ -33,17 +32,12 @@ public class StreamRecord {
     /**
      * Data to be added in the output variable.
      */
-    private Map<String, Object> variableData;
+    private JsonElement JSONPayload;
     private boolean isValid = true;
     private String parseError;
     private Charset encoding = StandardCharsets.UTF_8;
 
-    public StreamRecord() {
-        this.variableData = new LinkedHashMap<>();
-    }
-
     public StreamRecord(long recordNumber) {
-        this();
         this.recordNumber = recordNumber;
     }
 
@@ -63,8 +57,8 @@ public class StreamRecord {
         this.content = content;
     }
 
-    public Map<String, Object> getVariableData() {
-        return variableData;
+    public JsonElement getJSONPayload() {
+        return JSONPayload;
     }
 
     public boolean isValid() {
@@ -95,19 +89,8 @@ public class StreamRecord {
         return new String(content, encoding);
     }
 
-    public String getFieldByName(String fieldName) {
-        if (variableData == null) {
-            return null;
-        }
-        Object value = variableData.get(fieldName);
-        return value != null ? value.toString() : null;
-    }
-
-    public void putMetadata(String key, Object value) {
-        if (variableData == null) {
-            variableData = new LinkedHashMap<>();
-        }
-        variableData.put(key, value);
+    public void setJSONPayload(JsonElement payload) {
+        this.JSONPayload = payload;
     }
 
     @Override
@@ -115,7 +98,6 @@ public class StreamRecord {
         return "StreamRecord{" +
                 "rowNumber=" + recordNumber +
                 ", isValid=" + isValid +
-                ", fieldCount=" + (variableData != null ? variableData.size() : 0) +
                 '}';
     }
 }

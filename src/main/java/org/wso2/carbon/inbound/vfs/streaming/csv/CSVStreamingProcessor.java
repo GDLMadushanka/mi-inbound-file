@@ -18,18 +18,15 @@
 
 package org.wso2.carbon.inbound.vfs.streaming.csv;
 
+import com.google.gson.JsonArray;
+import com.google.gson.JsonObject;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.Charset;
-import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
 import java.util.NoSuchElementException;
-
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVParser;
 import org.apache.commons.csv.CSVRecord;
@@ -44,12 +41,12 @@ public class CSVStreamingProcessor extends ChunkedDataProcessor {
 
     private static final Log log = LogFactory.getLog(CSVStreamingProcessor.class);
 
-    private char delimiter = ',';
-    private char quoteChar = '"';
-    private boolean hasHeader = true;
+    private final char delimiter;
+    private final char quoteChar;
+    private final boolean hasHeader;
     private int chunkSize = 1;  // Number of rows per chunk in batch mode.
-    private boolean addOutputToVariable = false;  // Add output to variable (metadata) of body
-    private boolean addHeadersToEachResult = true; // Add header to each result row or chunk
+    private final boolean addOutputToVariable;  // Add output to variable (metadata) of body
+    private final boolean addHeadersToEachResult; // Add header to each result row or chunk
 
     public CSVStreamingProcessor(int bufferSize, char delimiter, char quoteChar, boolean hasHeader,
         boolean addOutputToVariable, boolean addHeadersToEachResult) {
@@ -62,7 +59,8 @@ public class CSVStreamingProcessor extends ChunkedDataProcessor {
     }
 
     @Override
-    public Iterator<StreamChunk> getChunkIterator(InputStream input, String contentType, int chunkSize)
+    public Iterator<StreamChunk> getChunkIterator(InputStream input, String contentType,
+        int chunkSize)
         throws StreamingException {
         this.chunkSize = Math.max(1, chunkSize);
         try {
@@ -116,10 +114,10 @@ public class CSVStreamingProcessor extends ChunkedDataProcessor {
     }
 
     /**
-     * Build record content as a delimiter-separated string.
-     * Fields are re-quoted per RFC 4180 so the reconstruction is a faithful, non-lossy
-     * round-trip: a field is wrapped in quotes if it contains the delimiter, the quote
-     * character, or a line break, and any embedded quote characters are doubled.
+     * Build record content as a delimiter-separated string. Fields are re-quoted per RFC 4180 so
+     * the reconstruction is a faithful, non-lossy round-trip: a field is wrapped in quotes if it
+     * contains the delimiter, the quote character, or a line break, and any embedded quote
+     * characters are doubled.
      */
     private String buildRecordContent(CSVRecord record) {
         if (record.size() == 0) {
@@ -133,8 +131,8 @@ public class CSVStreamingProcessor extends ChunkedDataProcessor {
     }
 
     /**
-     * Quote a single CSV field per RFC 4180 if it contains the delimiter, the quote
-     * character, or a line break. Embedded quote characters are escaped by doubling.
+     * Quote a single CSV field per RFC 4180 if it contains the delimiter, the quote character, or a
+     * line break. Embedded quote characters are escaped by doubling.
      */
     private String quoteField(String field) {
         boolean needsQuoting = field.indexOf(delimiter) >= 0
@@ -161,11 +159,12 @@ public class CSVStreamingProcessor extends ChunkedDataProcessor {
         private final Iterator<CSVRecord> csvIterator;
         private String[] headers;
         private long recordCount = 0;
+        private int chunkNumber = 0;
         private boolean eof = false;
         private CSVRecord nextRecord;
         private final Charset charset;
 
-        ChunkIterator(BufferedReader reader, Charset charset) throws IOException, StreamingException {
+        ChunkIterator(BufferedReader reader, Charset charset) throws StreamingException {
             this.charset = charset;
             try {
                 CSVFormat csvFormat = buildCSVFormat();
@@ -221,21 +220,19 @@ public class CSVStreamingProcessor extends ChunkedDataProcessor {
         }
 
         /**
-         * Get next chunk in batch mode. Each StreamChunk contains up to chunkSize
-         * rows. Headers are stored on the chunk, not on individual records (unless configured).
+         * Get next chunk in batch mode. Each StreamChunk contains up to chunkSize rows. Headers are
+         * stored on the chunk, not on individual records (unless configured).
          */
         private StreamChunk getNextBatchChunk() {
+            chunkNumber++;
             StreamChunk chunk = new StreamChunk(chunkSize);
+            chunk.setChunkNumber(chunkNumber);
             chunk.setEncoding(charset);
 
+            JsonArray resultsArray = null;
             if (addOutputToVariable) {
-                if (addHeadersToEachResult && headers != null && headers.length > 0) {
-                    // [{"ID":"1","Name":"John"},{"ID":"2","Name":"Jane"}]
-                    chunk.putMetadata("payload", new ArrayList<HashMap<String, Object>>());
-                } else {
-                    // [["1","John"],["2","Jane"]]
-                    chunk.putMetadata("payload", new ArrayList<ArrayList<String>>());
-                }
+                resultsArray = new JsonArray();
+                chunk.setJSONPayload(resultsArray);
             }
 
             int rowsInChunk = 0;
@@ -252,24 +249,17 @@ public class CSVStreamingProcessor extends ChunkedDataProcessor {
 
                 if (addOutputToVariable) {
                     if (addHeadersToEachResult && headers != null && headers.length > 0) {
-                        @SuppressWarnings("unchecked")
-                        ArrayList<HashMap<String, Object>> payload =
-                            (ArrayList<HashMap<String, Object>>)chunk.getMetadata().get("payload");
-                        HashMap<String, Object> recordMetadata = new HashMap<>();
+                        JsonObject jsonObject = new JsonObject();
                         for (int i = 0; i < headers.length && i < record.size(); i++) {
-                            recordMetadata.put(headers[i], record.get(i));
+                            jsonObject.addProperty(headers[i], record.get(i));
                         }
-                        payload.add(rowsInChunk-1, recordMetadata);
+                        resultsArray.add(jsonObject);
                     } else {
-                        // If no headers, store the row as a list of values
-                        @SuppressWarnings("unchecked")
-                        ArrayList<ArrayList<String>> payload =
-                            (ArrayList<ArrayList<String>>)chunk.getMetadata().get("payload");
-                        ArrayList<String> rowData = new ArrayList<>();
+                        JsonArray jsonArray = new JsonArray();
                         for (int i = 0; i < record.size(); i++) {
-                            rowData.add(record.get(i));
+                            jsonArray.add(record.get(i));
                         }
-                        payload.add(rowsInChunk -1, rowData);
+                        resultsArray.add(jsonArray);
                     }
                 } else {
                     String recordContent = buildRecordContent(record);
@@ -309,7 +299,7 @@ public class CSVStreamingProcessor extends ChunkedDataProcessor {
         private boolean eof = false;
         private CSVRecord nextRecord;
 
-        RowIterator(BufferedReader reader, Charset charset) throws IOException, StreamingException {
+        RowIterator(BufferedReader reader, Charset charset) throws StreamingException {
             this.charset = charset;
 
             try {
@@ -363,20 +353,20 @@ public class CSVStreamingProcessor extends ChunkedDataProcessor {
 
                 if (addOutputToVariable) {
                     if (headers != null && headers.length > 0) {
-                        Map<String, String> payload = new HashMap<>();
+                        JsonObject jsonObject = new JsonObject();
                         for (int i = 0; i < headers.length && i < record.size(); i++) {
-                            payload.put(headers[i], record.get(i));
+                            jsonObject.addProperty(headers[i], record.get(i));
                         }
                         // {"ID":"1","Name":"John"}
-                        streamRecord.putMetadata("payload", payload);
+                        streamRecord.setJSONPayload(jsonObject);
                     } else {
                         // If no headers, store the row as a list of values
-                        List<String> payload = new ArrayList<>();
+                        JsonArray jsonArray = new JsonArray();
                         for (int i = 0; i < record.size(); i++) {
-                            payload.add(record.get(i));
+                            jsonArray.add(record.get(i));
                         }
                         // ["1","John"]
-                        streamRecord.putMetadata("payload", payload);
+                        streamRecord.setJSONPayload(jsonArray);
                     }
                 } else {
                     String recordContent = buildRecordContent(record);
@@ -395,10 +385,6 @@ public class CSVStreamingProcessor extends ChunkedDataProcessor {
                     streamRecord.setContent(recordContent.getBytes(charset));
                 }
 
-                if (log.isDebugEnabled()) {
-                    log.debug(
-                        "Row-by-row mode: Record " + streamRecord.getRecordNumber() + " parsed");
-                }
                 return streamRecord;
 
             } catch (Exception e) {

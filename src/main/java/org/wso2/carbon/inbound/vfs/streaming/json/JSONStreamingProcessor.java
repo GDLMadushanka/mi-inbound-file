@@ -18,6 +18,7 @@
 
 package org.wso2.carbon.inbound.vfs.streaming.json;
 
+import com.google.gson.JsonArray;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -34,6 +35,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.wso2.carbon.inbound.vfs.Utils;
 import org.wso2.carbon.inbound.vfs.streaming.ChunkedDataProcessor;
 import org.wso2.carbon.inbound.vfs.streaming.StreamChunk;
 import org.wso2.carbon.inbound.vfs.streaming.StreamRecord;
@@ -111,7 +113,7 @@ public class JSONStreamingProcessor extends ChunkedDataProcessor {
         private final JsonParser parser;
         private final CompiledPath path;
         private boolean started = false;
-        private boolean arrayMode = false;
+
         private boolean done = false;
 
         MatchCursor(JsonParser parser, CompiledPath path) {
@@ -136,7 +138,6 @@ public class JSONStreamingProcessor extends ChunkedDataProcessor {
                         done = true;
                         return null;
                     }
-                    arrayMode = true;
                 } else {
                     // Single-node selector: emit the addressed node once.
                     JsonNode node = parser.readValueAsTree();
@@ -226,8 +227,12 @@ public class JSONStreamingProcessor extends ChunkedDataProcessor {
             try {
                 nextNode = cursor.nextMatch();
             } catch (IOException e) {
+                // The document could not be parsed any further (e.g. malformed JSON). The rest of
+                // the stream is meaningless, so surface a non-recoverable failure and let the caller
+                // apply the configured action-after-failure (move / delete) to the whole file.
                 nextNode = null;
-                log.warn("Error reading JSON stream at match " + recordCount, e);
+                throw new StreamingException(
+                        "Failed to parse JSON stream at match " + recordCount, e, recordCount, false);
             }
         }
 
@@ -251,10 +256,11 @@ public class JSONStreamingProcessor extends ChunkedDataProcessor {
 
             if (addOutputToVariable) {
                 // {"id":1,"name":"John"} or a scalar, as a plain Java value.
-                record.putMetadata("payload", MAPPER.convertValue(node, Object.class));
+                record.setJSONPayload(Utils.convertJacksonToGson(node));
             } else {
                 record.setContent(node.toString().getBytes(charset));
             }
+            record.setRecordNumber(recordCount);
             return record;
         }
 
@@ -272,6 +278,7 @@ public class JSONStreamingProcessor extends ChunkedDataProcessor {
         private final MatchCursor cursor;
         private final Charset charset;
         private final int chunkSize;
+        private int chunkNumber = 0;
         private long recordCount = 0;
         private JsonNode nextNode;
 
@@ -286,8 +293,12 @@ public class JSONStreamingProcessor extends ChunkedDataProcessor {
             try {
                 nextNode = cursor.nextMatch();
             } catch (IOException e) {
+                // The document could not be parsed any further (e.g. malformed JSON). The rest of
+                // the stream is meaningless, so surface a non-recoverable failure and let the caller
+                // apply the configured action-after-failure (move / delete) to the whole file.
                 nextNode = null;
-                log.warn("Error reading JSON stream at match " + recordCount, e);
+                throw new StreamingException(
+                        "Failed to parse JSON stream at match " + recordCount, e, recordCount, false);
             }
         }
 
@@ -302,14 +313,15 @@ public class JSONStreamingProcessor extends ChunkedDataProcessor {
                 throw new NoSuchElementException("No more JSON matches to iterate");
             }
 
+            chunkNumber++;
             StreamChunk chunk = new StreamChunk(chunkSize);
+            chunk.setChunkNumber(chunkNumber);
             chunk.setEncoding(charset);
 
-            List<Object> payload = null;
+            JsonArray resultsArray = null;
             if (addOutputToVariable) {
-                payload = new ArrayList<>();
-                // [ {...}, {...} ]
-                chunk.putMetadata("payload", payload);
+                resultsArray = new JsonArray();
+                chunk.setJSONPayload(resultsArray);
             }
 
             int matchesInChunk = 0;
@@ -324,7 +336,7 @@ public class JSONStreamingProcessor extends ChunkedDataProcessor {
                 record.setValid(true);
 
                 if (addOutputToVariable) {
-                    payload.add(MAPPER.convertValue(node, Object.class));
+                    resultsArray.add(Utils.convertJacksonToGson(node));
                 } else {
                     record.setContent(node.toString().getBytes(charset));
                 }
