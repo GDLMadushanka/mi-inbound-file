@@ -18,6 +18,8 @@
 
 package org.wso2.carbon.inbound.vfs.streaming.json;
 
+import com.google.gson.JsonArray;
+import com.google.gson.JsonObject;
 import org.junit.Assert;
 import org.junit.Test;
 import org.wso2.carbon.inbound.vfs.streaming.StreamChunk;
@@ -28,8 +30,6 @@ import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
 
 public class JSONStreamingProcessorTest {
 
@@ -55,17 +55,15 @@ public class JSONStreamingProcessorTest {
 
         StreamRecord r1 = it.next();
         Assert.assertEquals(1, r1.getRecordNumber());
-        @SuppressWarnings("unchecked")
-        Map<String, Object> book1 = (Map<String, Object>) r1.getJSONPayload().get("payload");
-        Assert.assertEquals(1, book1.get("id"));
-        Assert.assertEquals("A", book1.get("title"));
+        JsonObject book1 = r1.getJSONPayload().getAsJsonObject();
+        Assert.assertEquals(1, book1.get("id").getAsInt());
+        Assert.assertEquals("A", book1.get("title").getAsString());
 
         Assert.assertTrue(it.hasNext());
         it.next(); // book 2
         StreamRecord r3 = it.next();
-        @SuppressWarnings("unchecked")
-        Map<String, Object> book3 = (Map<String, Object>) r3.getJSONPayload().get("payload");
-        Assert.assertEquals("Cara", book3.get("author"));
+        JsonObject book3 = r3.getJSONPayload().getAsJsonObject();
+        Assert.assertEquals("Cara", book3.get("author").getAsString());
 
         Assert.assertFalse(it.hasNext());
     }
@@ -91,9 +89,9 @@ public class JSONStreamingProcessorTest {
                 new JSONStreamingProcessor(8192, "$.store.books[*].author", true);
         Iterator<StreamRecord> it = processor.getRecordIterator(stream(NESTED), "application/json");
 
-        Assert.assertEquals("Ann", it.next().getJSONPayload().get("payload"));
-        Assert.assertEquals("Bob", it.next().getJSONPayload().get("payload"));
-        Assert.assertEquals("Cara", it.next().getJSONPayload().get("payload"));
+        Assert.assertEquals("Ann", it.next().getJSONPayload().getAsString());
+        Assert.assertEquals("Bob", it.next().getJSONPayload().getAsString());
+        Assert.assertEquals("Cara", it.next().getJSONPayload().getAsString());
         Assert.assertFalse(it.hasNext());
     }
 
@@ -105,12 +103,10 @@ public class JSONStreamingProcessorTest {
 
         StreamChunk c1 = it.next();
         Assert.assertEquals(2, c1.getRecordCount());
-        @SuppressWarnings("unchecked")
-        List<Object> payload1 = (List<Object>) c1.getJSONPayload().get("payload");
+        JsonArray payload1 = c1.getJSONPayload().getAsJsonArray();
         Assert.assertEquals(2, payload1.size());
-        @SuppressWarnings("unchecked")
-        Map<String, Object> first = (Map<String, Object>) payload1.get(0);
-        Assert.assertEquals("A", first.get("title"));
+        JsonObject first = payload1.get(0).getAsJsonObject();
+        Assert.assertEquals("A", first.get("title").getAsString());
         Assert.assertFalse(c1.isLastChunk());
 
         StreamChunk c2 = it.next();
@@ -127,9 +123,8 @@ public class JSONStreamingProcessorTest {
 
         Assert.assertTrue(it.hasNext());
         StreamRecord r = it.next();
-        @SuppressWarnings("unchecked")
-        Map<String, Object> store = (Map<String, Object>) r.getJSONPayload().get("payload");
-        Assert.assertTrue(store.containsKey("books"));
+        JsonObject store = r.getJSONPayload().getAsJsonObject();
+        Assert.assertTrue(store.has("books"));
         Assert.assertFalse("Single-node selector emits exactly once", it.hasNext());
     }
 

@@ -18,13 +18,7 @@
 
 package org.wso2.carbon.inbound.vfs;
 
-import com.google.gson.JsonObject;
-import java.util.HashMap;
-import org.apache.axiom.om.OMAbstractFactory;
 import org.apache.axiom.om.OMElement;
-import org.apache.axiom.om.util.UUIDGenerator;
-import org.apache.axiom.soap.SOAPEnvelope;
-import org.apache.axis2.AxisFault;
 import org.apache.axis2.Constants.Configuration;
 import org.apache.axis2.builder.Builder;
 import org.apache.axis2.builder.BuilderUtil;
@@ -38,52 +32,39 @@ import org.apache.commons.io.input.AutoCloseInputStream;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-import org.apache.synapse.SynapseConstants;
 import org.apache.synapse.commons.vfs.VFSConstants;
 import org.apache.synapse.core.SynapseEnvironment;
 import org.apache.synapse.core.axis2.Axis2MessageContext;
 import org.apache.synapse.inbound.InboundEndpoint;
 import org.apache.synapse.mediators.base.SequenceMediator;
 import org.apache.synapse.transport.customlogsetter.CustomLogSetter;
-import org.wso2.carbon.inbound.vfs.streaming.StreamChunk;
-import org.wso2.carbon.inbound.vfs.streaming.StreamRecord;
-import org.wso2.carbon.inbound.vfs.streaming.StreamingConstants;
-import org.wso2.carbon.inbound.vfs.streaming.StreamingException;
-import org.wso2.carbon.inbound.vfs.streaming.StreamingProcessor;
-import org.wso2.carbon.inbound.vfs.streaming.StreamingProcessorFactory;
 import org.wso2.org.apache.commons.vfs2.FileObject;
+import org.wso2.org.apache.commons.vfs2.FileSystemManager;
 
 import javax.mail.internet.ContentType;
 import javax.mail.internet.ParseException;
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.charset.Charset;
-import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
 
 import static org.apache.axis2.context.MessageContext.TRANSPORT_HEADERS;
 
-public class FileInjectHandler {
+/**
+ * Injects an inbound VFS file into a Synapse sequence. Dispatches based on the configured streaming
+ * mode: the whole-file (ENTIRE_FILE / non-streaming) path is handled here; CHUNK and RECORD
+ * streaming are delegated to {@link StreamInjectHandler}.
+ */
+public class FileInjectHandler extends AbstractInjectHandler {
 
     private static final Log log = LogFactory.getLog(FileInjectHandler.class);
 
-    private String injectingSeq;
-    private String onErrorSeq;
-    private boolean sequential;
-    private VFSConfig vfsProperties;
-    private SynapseEnvironment synapseEnvironment;
-    private Map<String, Object> transportHeaders;
-    private String fileURI;
+    private final FileSystemManager fsManager;
 
     public FileInjectHandler(String injectingSeq, String onErrorSeq, boolean sequential,
-                             SynapseEnvironment synapseEnvironment, VFSConfig vfsProperties) {
-        this.injectingSeq = injectingSeq;
-        this.onErrorSeq = onErrorSeq;
-        this.sequential = sequential;
-        this.synapseEnvironment = synapseEnvironment;
-        this.vfsProperties = vfsProperties;
+                             SynapseEnvironment synapseEnvironment, VFSConfig vfsProperties,
+                             FileSystemManager fsManager) {
+        super(injectingSeq, onErrorSeq, sequential, synapseEnvironment, vfsProperties);
+        this.fsManager = fsManager;
     }
 
     /**
@@ -92,8 +73,8 @@ public class FileInjectHandler {
      * <ul>
      *     <li>ENTIRE_FILE (or streaming disabled) - inject the whole file as one message
      *         (previous behaviour, backwards compatible).</li>
-     *     <li>CHUNK - stream the file in batches of records (ChunkIterator), one message per chunk.</li>
-     *     <li>RECORD - stream the file record by record (RowIterator), one message per record.</li>
+     *     <li>CHUNK - stream the file in batches of records, one message per chunk.</li>
+     *     <li>RECORD - stream the file record by record, one message per record.</li>
      * </ul>
      */
     public boolean invoke(Object object, String name) {
@@ -102,13 +83,25 @@ public class FileInjectHandler {
         if (vfsProperties.isStreaming()) {
             String mode = vfsProperties.getStreamingMode();
             if (org.wso2.carbon.inbound.vfs.VFSConstants.STREAMING_MODE_CHUNK.equalsIgnoreCase(mode)) {
-                return invokeStreaming(file, name, true);
+                return newStreamHandler().stream(file, name, true);
             } else if (org.wso2.carbon.inbound.vfs.VFSConstants.STREAMING_MODE_RECORD.equalsIgnoreCase(mode)) {
-                return invokeStreaming(file, name, false);
+                return newStreamHandler().stream(file, name, false);
             }
             // ENTIRE_FILE (default) falls through to the whole-file behaviour below.
         }
         return invokeEntireFile(file, name);
+    }
+
+    /**
+     * Create a {@link StreamInjectHandler} sharing this handler's configuration and the current
+     * transport headers / file URI.
+     */
+    private StreamInjectHandler newStreamHandler() {
+        StreamInjectHandler handler = new StreamInjectHandler(injectingSeq, onErrorSeq, sequential,
+                synapseEnvironment, vfsProperties, fsManager);
+        handler.setTransportHeaders(transportHeaders);
+        handler.setFileURI(fileURI);
+        return handler;
     }
 
     /**
@@ -121,9 +114,7 @@ public class FileInjectHandler {
         InputStream in = null;
         try {
             org.apache.synapse.MessageContext msgCtx = createMessageContext();
-            msgCtx.setProperty(SynapseConstants.INBOUND_ENDPOINT_NAME, name);
-            msgCtx.setProperty(SynapseConstants.ARTIFACT_NAME, SynapseConstants.FAIL_SAFE_MODE_INBOUND_ENDPOINT + name);
-            msgCtx.setProperty(SynapseConstants.IS_INBOUND, true);
+            seedInboundProperties(msgCtx, name);
 
             InboundEndpoint inboundEndpoint = msgCtx.getConfiguration().getInboundEndpoint(name);
             CustomLogSetter.getInstance().setLogAppender(inboundEndpoint.getArtifactContainerName());
@@ -210,22 +201,16 @@ public class FileInjectHandler {
                 if (vfsProperties.isAppend()) {
                     axis2MsgCtx.setProperty("transport.vfs.Append", "true");
                 }
-                // Optional (config-driven): if you later add a boolean to VFSConfig, do:
-                // axis2MsgCtx.setProperty("transport.vfs.Append",
-                //     String.valueOf(vfsProperties.isAppendEnabled()));
-                // <<< APPEND MODE
 
                 synapseEnvironment.injectInbound(msgCtx, seq, sequential);
 
-                Map<String, Object> transportHeaders =
+                Map<String, Object> responseHeaders =
                         (Map<String, Object>) axis2MsgCtx.getProperty(TRANSPORT_HEADERS);
-                String errorCode = (transportHeaders != null)
-                        ? (String) transportHeaders.get(VFSConstants.ERROR_CODE) : null;
+                String errorCode = (responseHeaders != null)
+                        ? (String) responseHeaders.get(VFSConstants.ERROR_CODE) : null;
                 if (StringUtils.isNotEmpty(errorCode)) {
                     return false;
                 }
-                /// set rollback property check = -1
-                /// write body of message.
             } else {
                 log.error("Sequence: " + injectingSeq + " not found");
             }
@@ -245,229 +230,5 @@ public class FileInjectHandler {
             }
         }
         return true;
-    }
-
-    /**
-     * Stream a file to the sequence, injecting one message per chunk or per record.
-     *
-     * @param file      the file being processed
-     * @param name      the inbound endpoint name
-     * @param chunkMode true for CHUNK mode (ChunkIterator), false for RECORD mode (RowIterator)
-     * @return true if every chunk/record was injected without error
-     */
-    private boolean invokeStreaming(FileObject file, String name, boolean chunkMode) {
-        // In streaming modes the content type is fixed by the input format (not the user-configured
-        // transport.vfs.ContentType), and drives both the reader charset and the message builder.
-        String contentType = vfsProperties.getStreamingContentType();
-        String inputFormat = vfsProperties.getStreamingInputFormat();
-        StreamingProcessor processor = StreamingProcessorFactory.getProcessor(inputFormat, vfsProperties);
-        if (processor == null) {
-            log.error("No streaming processor found for input format '" + inputFormat
-                    + "'. Cannot stream file: " + file.getName().getBaseName());
-            return false;
-        }
-
-        boolean addOutputToVariable = vfsProperties.isStreamingAddOutputToVariable();
-
-        try (InputStream in = file.getContent().getInputStream()) {
-            if (chunkMode) {
-                Iterator<StreamChunk> iterator =
-                        processor.getChunkIterator(in, contentType, vfsProperties.getStreamingChunkSize());
-                while (iterator.hasNext()) {
-                    try {
-                        StreamChunk chunk = iterator.next();
-                        byte[] body = addOutputToVariable ? null : buildChunkBody(chunk);
-                        Map<String, Object> variableOutputMap = null;
-                        if (addOutputToVariable) {
-                            variableOutputMap = new HashMap<>();
-                            JsonObject attributes = new JsonObject();
-                            attributes.addProperty(StreamingConstants.FIRST_RECORD_IN_CHUNK,
-                                chunk.getFirstRecordNumber());
-                            attributes.addProperty(StreamingConstants.LAST_RECORD_IN_CHUNK,
-                                chunk.getLastRecordNumber());
-                            attributes.addProperty(StreamingConstants.CHUNK_SIZE,
-                                chunk.getRecordCount());
-                            attributes.addProperty(StreamingConstants.CHUNK_NUMBER,
-                                chunk.getChunkNumber());
-                            variableOutputMap.put(StreamingConstants.ATTRIBUTES, attributes);
-                            variableOutputMap.put(StreamingConstants.PAYLOAD,
-                                chunk.getJSONPayload());
-                        }
-                        if (!injectStreamingMessage(name, contentType, body, variableOutputMap)) {
-                            return false;
-                        }
-                    } catch (StreamingException ex) {
-                        if (ex.isRecoverable()) {
-                            log.warn("Recoverable streaming error at row " + ex.getRowNumber()
-                                + ". Continuing with next chunk.", ex);
-                        } else {
-                            log.error("Unrecoverable streaming error at row " + ex.getRowNumber()
-                                + ". Aborting processing the file : " + file.getName().getBaseName(), ex);
-                            return false;
-                        }
-                    }
-                }
-            } else {
-                Iterator<StreamRecord> iterator = processor.getRecordIterator(in, contentType);
-                while (iterator.hasNext()) {
-                    try {
-                        StreamRecord record = iterator.next();
-                        Map<String, Object> variableOutputMap = null;
-                        if (addOutputToVariable) {
-                            variableOutputMap = new HashMap<>();
-                            JsonObject attributes = new JsonObject();
-                            attributes.addProperty(StreamingConstants.RECORD_NUMBER,
-                                record.getRecordNumber());
-                            variableOutputMap.put(StreamingConstants.ATTRIBUTES, attributes);
-                            variableOutputMap.put(StreamingConstants.PAYLOAD,
-                                record.getJSONPayload());
-                        }
-                        byte[] body = addOutputToVariable ? null : record.getContent();
-                        if (!injectStreamingMessage(name, contentType, body, variableOutputMap)) {
-                            return false;
-                        }
-                    } catch (StreamingException ex) {
-                        if (ex.isRecoverable()) {
-                            log.warn("Recoverable streaming error at row " + ex.getRowNumber()
-                                    + ". Continuing with next record.", ex);
-                        } else {
-                            log.error("Unrecoverable streaming error at row " + ex.getRowNumber()
-                                    + ". Aborting processing the file : " + file.getName().getBaseName(), ex);
-                            return false;
-                        }
-                    }
-                }
-            }
-        } catch (Exception e) {
-            log.error("Error while streaming the file/folder : " + file.getName(), e);
-            return false;
-        }
-        return true;
-    }
-
-    /**
-     * Build the message body for a chunk in raw-content mode by joining each record's raw
-     * content with the platform line separator.
-     */
-    private byte[] buildChunkBody(StreamChunk chunk) {
-        Charset charset = chunk.getEncoding();
-        StringBuilder sb = new StringBuilder();
-        List<StreamRecord> records = chunk.getRecords();
-        for (int i = 0; i < records.size(); i++) {
-            byte[] content = records.get(i).getContent();
-            if (content == null) {
-                continue;
-            }
-            if (sb.length() > 0) {
-                sb.append(System.lineSeparator());
-            }
-            sb.append(new String(content, charset));
-        }
-        return sb.toString().getBytes(charset);
-    }
-
-    /**
-     * Create a message context for a single chunk/record and inject it to the sequence.
-     * When {@code body} is non-null it becomes the message payload; when
-     * {@code variableOutput} is non-null it is exposed as a message property.
-     *
-     * @return true if the injection completed without an error code
-     */
-    private boolean injectStreamingMessage(String name, String contentType, byte[] body,
-        Map<String, Object> variableOutput) throws Exception {
-        org.apache.synapse.MessageContext msgCtx = createMessageContext();
-        msgCtx.setProperty(SynapseConstants.INBOUND_ENDPOINT_NAME, name);
-        msgCtx.setProperty(SynapseConstants.ARTIFACT_NAME,
-                SynapseConstants.FAIL_SAFE_MODE_INBOUND_ENDPOINT + name);
-        msgCtx.setProperty(SynapseConstants.IS_INBOUND, true);
-
-        InboundEndpoint inboundEndpoint = msgCtx.getConfiguration().getInboundEndpoint(name);
-        CustomLogSetter.getInstance().setLogAppender(inboundEndpoint.getArtifactContainerName());
-
-        MessageContext axis2MsgCtx = ((Axis2MessageContext) msgCtx).getAxis2MessageContext();
-
-        if (vfsProperties.isStreamingAddOutputToVariable()) {
-            msgCtx.setVariable(vfsProperties.getStreamingOutputVariable(), variableOutput);
-            // add empty SOAP envelope.
-            SOAPEnvelope envelope = OMAbstractFactory.getSOAP12Factory().getDefaultEnvelope();
-            msgCtx.setEnvelope(envelope);
-        } else {
-            // Raw record/chunk content becomes the message body.
-            Builder builder = resolveBuilder(contentType, axis2MsgCtx);
-            OMElement documentElement = builder.processDocument(
-                    new ByteArrayInputStream(body), contentType, axis2MsgCtx);
-            if (vfsProperties.isBuild()) {
-                documentElement.build();
-            }
-            msgCtx.setEnvelope(TransportUtils.createSOAPEnvelope(documentElement));
-        }
-
-        if (injectingSeq == null || injectingSeq.equals("")) {
-            log.error("Sequence name not specified. Sequence : " + injectingSeq);
-            return false;
-        }
-        SequenceMediator seq = (SequenceMediator) synapseEnvironment.getSynapseConfiguration()
-                .getSequence(injectingSeq);
-        if (seq == null) {
-            log.error("Sequence: " + injectingSeq + " not found");
-            return false;
-        }
-        if (!seq.isInitialized()) {
-            seq.init(synapseEnvironment);
-        }
-        seq.setErrorHandler(onErrorSeq);
-        if (vfsProperties.isAppend()) {
-            axis2MsgCtx.setProperty("transport.vfs.Append", "true");
-        }
-
-        synapseEnvironment.injectInbound(msgCtx, seq, sequential);
-
-        Map<String, Object> responseHeaders =
-                (Map<String, Object>) axis2MsgCtx.getProperty(TRANSPORT_HEADERS);
-        String errorCode = (responseHeaders != null)
-                ? (String) responseHeaders.get(VFSConstants.ERROR_CODE) : null;
-        return StringUtils.isEmpty(errorCode);
-    }
-
-    /**
-     * Select the Axis2 message builder for the given content type, falling back to SOAP.
-     */
-    private Builder resolveBuilder(String contentType, MessageContext axis2MsgCtx)
-            throws AxisFault {
-        if (contentType == null) {
-            return new SOAPBuilder();
-        }
-        int index = contentType.indexOf(';');
-        String type = index > 0 ? contentType.substring(0, index) : contentType;
-        Builder builder = BuilderUtil.getBuilderFromSelector(type, axis2MsgCtx);
-        if (builder == null) {
-            builder = new SOAPBuilder();
-        }
-        return builder;
-    }
-
-    /**
-     * @param transportHeaders the transportHeaders to set
-     */
-    public void setTransportHeaders(Map<String, Object> transportHeaders) {
-        this.transportHeaders = transportHeaders;
-    }
-
-    public void setFileURI(String fileURI) {
-        this.fileURI = fileURI;
-    }
-
-    /**
-     * Create the initial message context for the file
-     */
-    private org.apache.synapse.MessageContext createMessageContext() {
-        org.apache.synapse.MessageContext msgCtx = synapseEnvironment.createMessageContext();
-        MessageContext axis2MsgCtx = ((Axis2MessageContext) msgCtx)
-                .getAxis2MessageContext();
-        axis2MsgCtx.setServerSide(true);
-        axis2MsgCtx.setMessageID(UUIDGenerator.getUUID());
-        axis2MsgCtx.setProperty(TRANSPORT_HEADERS, transportHeaders);
-        msgCtx.setProperty(MessageContext.CLIENT_API_NON_BLOCKING, true);
-        return msgCtx;
     }
 }

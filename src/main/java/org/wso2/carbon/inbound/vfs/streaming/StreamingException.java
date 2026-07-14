@@ -38,8 +38,8 @@ package org.wso2.carbon.inbound.vfs.streaming;
  */
 public class StreamingException extends RuntimeException {
 
-    private long rowNumber;
-    private boolean isRecoverable;
+    private final long rowNumber;
+    private final boolean isRecoverable;
 
     public StreamingException(String message) {
         super(message);

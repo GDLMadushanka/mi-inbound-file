@@ -18,8 +18,9 @@
 
 package org.wso2.carbon.inbound.vfs.streaming.csv;
 
+import com.google.gson.JsonArray;
+import com.google.gson.JsonObject;
 import java.nio.file.Files;
-import java.util.ArrayList;
 import org.junit.Assert;
 import org.junit.Test;
 import org.wso2.carbon.inbound.vfs.streaming.StreamChunk;
@@ -27,10 +28,8 @@ import org.wso2.carbon.inbound.vfs.streaming.StreamRecord;
 
 import java.io.File;
 import java.io.InputStream;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 
 /**
  * Integration tests reading actual CSV files from the file system.
@@ -68,18 +67,15 @@ public class CSVStreamingIntegrationTest {
                 Assert.assertTrue("Record should be valid", record.isValid());
 
                 // Record mode with headers: payload is a JSON object keyed by header names.
-                Map<String, Object> variableData = record.getJSONPayload();
-                Assert.assertNotNull("VariableData should not be null", variableData);
-                Assert.assertNotNull("Payload should be present", variableData.get("payload"));
+                JsonObject payload = record.getJSONPayload().getAsJsonObject();
+                Assert.assertNotNull("Payload should be present", payload);
 
                 if (recordCount == 10) {
-                    @SuppressWarnings("unchecked")
-                    Map<String, Object> payload = (Map<String, Object>) variableData.get("payload");
-                    Assert.assertEquals("10", payload.get("ID"));
-                    Assert.assertEquals("Henry Taylor", payload.get("Name"));
-                    Assert.assertEquals("henry.taylor@example.com", payload.get("Email"));
-                    Assert.assertEquals("Sales", payload.get("Department"));
-                    Assert.assertEquals("51000", payload.get("Salary"));
+                    Assert.assertEquals("10", payload.get("ID").getAsString());
+                    Assert.assertEquals("Henry Taylor", payload.get("Name").getAsString());
+                    Assert.assertEquals("henry.taylor@example.com", payload.get("Email").getAsString());
+                    Assert.assertEquals("Sales", payload.get("Department").getAsString());
+                    Assert.assertEquals("51000", payload.get("Salary").getAsString());
                 }
             }
 
@@ -122,15 +118,13 @@ public class CSVStreamingIntegrationTest {
                 Assert.assertEquals("Number of records should match recordCount", recordsInChunk, records.size());
 
                 if (chunkCount == 2) {
-                    @SuppressWarnings("unchecked")
-                    ArrayList<HashMap<String, Object>> payload =
-                        (ArrayList<HashMap<String, Object>>) chunk.getJSONPayload().get("payload");
-                    HashMap<String, Object> fifthRecord = payload.get(1);
-                    Assert.assertEquals("5", fifthRecord.get("ID"));
-                    Assert.assertEquals("Charlie Brown", fifthRecord.get("Name"));
-                    Assert.assertEquals("charlie.brown@example.com", fifthRecord.get("Email"));
-                    Assert.assertEquals("Sales", fifthRecord.get("Department"));
-                    Assert.assertEquals("48000", fifthRecord.get("Salary"));
+                    JsonArray payload = chunk.getJSONPayload().getAsJsonArray();
+                    JsonObject fifthRecord = payload.get(1).getAsJsonObject();
+                    Assert.assertEquals("5", fifthRecord.get("ID").getAsString());
+                    Assert.assertEquals("Charlie Brown", fifthRecord.get("Name").getAsString());
+                    Assert.assertEquals("charlie.brown@example.com", fifthRecord.get("Email").getAsString());
+                    Assert.assertEquals("Sales", fifthRecord.get("Department").getAsString());
+                    Assert.assertEquals("48000", fifthRecord.get("Salary").getAsString());
                 }
 
                 // Verify each record is valid
@@ -210,24 +204,20 @@ public class CSVStreamingIntegrationTest {
                 Assert.assertTrue("Record should be valid", record.isValid());
 
                 // Record mode with headers: payload is a JSON object keyed by header names.
-                Map<String, Object> variableData = record.getJSONPayload();
-                Assert.assertNotNull("VariableData should not be null", variableData);
-
-                @SuppressWarnings("unchecked")
-                Map<String, Object> payload = (Map<String, Object>) variableData.get("payload");
+                JsonObject payload = record.getJSONPayload().getAsJsonObject();
                 Assert.assertNotNull("Payload should be present", payload);
 
                 // Verify quoted fields with embedded commas are parsed as single fields
                 if (recordCount == 1) {
-                    Assert.assertEquals("1", payload.get("ID"));
-                    Assert.assertEquals("Smith, John", payload.get("Name"));
-                    Assert.assertEquals("123 Main St, Apt 4", payload.get("Address"));
-                    Assert.assertEquals("555-0101", payload.get("Phone"));
+                    Assert.assertEquals("1", payload.get("ID").getAsString());
+                    Assert.assertEquals("Smith, John", payload.get("Name").getAsString());
+                    Assert.assertEquals("123 Main St, Apt 4", payload.get("Address").getAsString());
+                    Assert.assertEquals("555-0101", payload.get("Phone").getAsString());
                 } else if (recordCount == 5) {
-                    Assert.assertEquals("5", payload.get("ID"));
-                    Assert.assertEquals("Brown, Charlie", payload.get("Name"));
-                    Assert.assertEquals("654 Maple Dr, Unit B", payload.get("Address"));
-                    Assert.assertEquals("555-0105", payload.get("Phone"));
+                    Assert.assertEquals("5", payload.get("ID").getAsString());
+                    Assert.assertEquals("Brown, Charlie", payload.get("Name").getAsString());
+                    Assert.assertEquals("654 Maple Dr, Unit B", payload.get("Address").getAsString());
+                    Assert.assertEquals("555-0105", payload.get("Phone").getAsString());
                 }
             }
 
@@ -262,23 +252,21 @@ public class CSVStreamingIntegrationTest {
                 }
 
                 // Verify quoted fields with embedded commas are parsed correctly
-                @SuppressWarnings("unchecked")
-                ArrayList<HashMap<String, Object>> payload =
-                    (ArrayList<HashMap<String, Object>>) chunk.getJSONPayload().get("payload");
+                JsonArray payload = chunk.getJSONPayload().getAsJsonArray();
                 Assert.assertNotNull("Payload should be present", payload);
                 Assert.assertEquals("Payload should have 5 records", 5, payload.size());
 
-                HashMap<String, Object> secondRecord = payload.get(1);
-                Assert.assertEquals("2", secondRecord.get("ID"));
-                Assert.assertEquals("Doe, Jane", secondRecord.get("Name"));
-                Assert.assertEquals("456 Oak Ave, Suite 200", secondRecord.get("Address"));
-                Assert.assertEquals("555-0102", secondRecord.get("Phone"));
+                JsonObject secondRecord = payload.get(1).getAsJsonObject();
+                Assert.assertEquals("2", secondRecord.get("ID").getAsString());
+                Assert.assertEquals("Doe, Jane", secondRecord.get("Name").getAsString());
+                Assert.assertEquals("456 Oak Ave, Suite 200", secondRecord.get("Address").getAsString());
+                Assert.assertEquals("555-0102", secondRecord.get("Phone").getAsString());
 
-                HashMap<String, Object> thirdRecord = payload.get(2);
-                Assert.assertEquals("3", thirdRecord.get("ID"));
-                Assert.assertEquals("Johnson, Bob", thirdRecord.get("Name"));
-                Assert.assertEquals("789 Pine Rd, Building A", thirdRecord.get("Address"));
-                Assert.assertEquals("555-0103", thirdRecord.get("Phone"));
+                JsonObject thirdRecord = payload.get(2).getAsJsonObject();
+                Assert.assertEquals("3", thirdRecord.get("ID").getAsString());
+                Assert.assertEquals("Johnson, Bob", thirdRecord.get("Name").getAsString());
+                Assert.assertEquals("789 Pine Rd, Building A", thirdRecord.get("Address").getAsString());
+                Assert.assertEquals("555-0103", thirdRecord.get("Phone").getAsString());
             }
 
             // 5 rows / 5 per chunk = 1 chunk
@@ -370,15 +358,15 @@ public class CSVStreamingIntegrationTest {
         try (InputStream input = Files.newInputStream(csvFile.toPath())) {
             Iterator<StreamChunk> iterator = processor.getChunkIterator(input, "text/csv", 1);
 
-            // First record should have record number 2 (row 1 is header)
+            // The header is skipped, so data rows are numbered 1-based.
             StreamChunk chunk1 = iterator.next();
             StreamRecord record1 = chunk1.getRecords().get(0);
-            Assert.assertEquals("First data row should have record number 2", 2, record1.getRecordNumber());
+            Assert.assertEquals("First data row should have record number 1", 1, record1.getRecordNumber());
 
-            // Second record should have record number 3
+            // Second data row should have record number 2
             StreamChunk chunk2 = iterator.next();
             StreamRecord record2 = chunk2.getRecords().get(0);
-            Assert.assertEquals("Second data row should have record number 3", 3, record2.getRecordNumber());
+            Assert.assertEquals("Second data row should have record number 2", 2, record2.getRecordNumber());
         }
     }
 }

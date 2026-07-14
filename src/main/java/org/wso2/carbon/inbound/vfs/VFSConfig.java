@@ -122,6 +122,9 @@ public class VFSConfig {
     private char streamingCsvDelimiter;
     private char streamingCsvQuote;
     private boolean streamingCsvHasHeader;
+    private String streamingFailedRecordsFolder;
+    private boolean streamingSkipFailedRecords;
+    private int streamingMaxFailedRecords;
     private boolean build;
     private int maxRetryCount;
     private long reconnectTimeout;
@@ -203,6 +206,18 @@ public class VFSConfig {
                 properties.getProperty(VFSConstants.STREAMING_CSV_QUOTE), '"');
         this.streamingCsvHasHeader = Boolean.parseBoolean(
                 properties.getProperty(VFSConstants.STREAMING_CSV_HAS_HEADER, "true"));
+        this.streamingFailedRecordsFolder =
+                properties.getProperty(VFSConstants.STREAMING_FAILED_RECORDS_FOLDER);
+        // The failed-record siphon defaults on for JSONL (a bad line does not invalidate the file)
+        // and off for every other format, but an explicit value always wins.
+        boolean defaultSkipFailedRecords =
+                VFSConstants.STREAMING_FORMAT_JSONL.equalsIgnoreCase(this.streamingInputFormat);
+        this.streamingSkipFailedRecords = Boolean.parseBoolean(
+                properties.getProperty(VFSConstants.STREAMING_SKIP_FAILED_RECORDS,
+                        String.valueOf(defaultSkipFailedRecords)));
+        this.streamingMaxFailedRecords = Integer.parseInt(
+                properties.getProperty(VFSConstants.STREAMING_MAX_FAILED_RECORDS,
+                        String.valueOf(VFSConstants.DEFAULT_STREAMING_MAX_FAILED_RECORDS)));
         this.streamingCharset = properties.getProperty(
                 VFSConstants.STREAMING_CHARSET, VFSConstants.DEFAULT_STREAMING_CHARSET);
         // In streaming CHUNK/RECORD modes the content type is fixed by the input format. The charset
@@ -575,6 +590,30 @@ public class VFSConfig {
 
     public boolean isStreamingCsvHasHeader() {
         return streamingCsvHasHeader;
+    }
+
+    /**
+     * VFS URI of the folder where siphoned failed records are appended, or null/empty if not
+     * configured (callers then fall back to the fault folder, or log-only).
+     */
+    public String getStreamingFailedRecordsFolder() {
+        return streamingFailedRecordsFolder;
+    }
+
+    /**
+     * True when recoverable per-record failures should be siphoned to the failed-records file and
+     * skipped, leaving the source file a success. Defaults to true for JSONL and false otherwise.
+     */
+    public boolean isStreamingSkipFailedRecords() {
+        return streamingSkipFailedRecords;
+    }
+
+    /**
+     * Maximum number of failed records tolerated before the whole file is treated as a complete
+     * failure. -1 means unlimited.
+     */
+    public int getStreamingMaxFailedRecords() {
+        return streamingMaxFailedRecords;
     }
 
     /**

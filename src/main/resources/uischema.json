@@ -631,6 +631,7 @@
                 "text",
                 "csv",
                 "json",
+                "jsonl",
                 "xml"
               ],
               "defaultValue": "text",
@@ -733,6 +734,95 @@
                   {
                     "transport.vfs.StreamingMode": "RECORD"
                   }
+                ]
+              ]
+            }
+          },
+          {
+            "type": "attribute",
+            "value": {
+              "name": "transport.vfs.StreamingSkipFailedRecords",
+              "displayName": "Skip Failed Records",
+              "inputType": "checkbox",
+              "defaultValue": "false",
+              "required": "false",
+              "helpTip": "When enabled, a record that fails to parse is siphoned to the failed-records folder and skipped instead of failing the whole file. Recommended for JSONL, where a bad line does not invalidate the file (defaults to enabled for the JSONL format).",
+              "enableCondition": [
+                "AND",
+                {
+                  "transport.vfs.Streaming": true
+                },
+                [
+                  "OR",
+                  {
+                    "transport.vfs.StreamingMode": "CHUNK"
+                  },
+                  {
+                    "transport.vfs.StreamingMode": "RECORD"
+                  }
+                ]
+              ]
+            }
+          },
+          {
+            "type": "attribute",
+            "value": {
+              "name": "transport.vfs.StreamingFailedRecordsFolder",
+              "displayName": "Failed Records Folder",
+              "inputType": "string",
+              "required": "false",
+              "helpTip": "VFS URI of the folder where the raw bytes of failed records are appended (one sidecar file per source file). When empty, falls back to the fault folder (Move After Failure); if that is also empty, failed records are logged only.",
+              "enableCondition": [
+                "AND",
+                {
+                  "transport.vfs.Streaming": true
+                },
+                [
+                  "AND",
+                  {
+                    "transport.vfs.StreamingSkipFailedRecords": true
+                  },
+                  [
+                    "OR",
+                    {
+                      "transport.vfs.StreamingMode": "CHUNK"
+                    },
+                    {
+                      "transport.vfs.StreamingMode": "RECORD"
+                    }
+                  ]
+                ]
+              ]
+            }
+          },
+          {
+            "type": "attribute",
+            "value": {
+              "name": "transport.vfs.StreamingMaxFailedRecords",
+              "displayName": "Max Failed Records",
+              "inputType": "string",
+              "defaultValue": "-1",
+              "required": "false",
+              "helpTip": "Maximum number of failed records tolerated before the whole file is treated as a complete failure (moved to the fault folder / deleted). -1 means unlimited.",
+              "enableCondition": [
+                "AND",
+                {
+                  "transport.vfs.Streaming": true
+                },
+                [
+                  "AND",
+                  {
+                    "transport.vfs.StreamingSkipFailedRecords": true
+                  },
+                  [
+                    "OR",
+                    {
+                      "transport.vfs.StreamingMode": "CHUNK"
+                    },
+                    {
+                      "transport.vfs.StreamingMode": "RECORD"
+                    }
+                  ]
                 ]
               ]
             }

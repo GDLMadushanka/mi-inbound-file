@@ -106,6 +106,15 @@ public class JSONStreamingProcessor extends ChunkedDataProcessor {
     }
 
     /**
+     * A JSON chunk body is a JSON array of the matched nodes (each record's content is a compact
+     * JSON value), not newline-joined text.
+     */
+    @Override
+    public byte[] buildChunkBody(StreamChunk chunk) {
+        return buildJsonArrayChunkBody(chunk);
+    }
+
+    /**
      * Pull cursor that walks the Jackson token stream and yields one matched node at a time.
      */
     private static final class MatchCursor {

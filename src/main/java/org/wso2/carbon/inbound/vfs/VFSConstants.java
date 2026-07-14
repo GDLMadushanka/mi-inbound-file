@@ -133,6 +133,34 @@ public class VFSConstants {
     public static final String STREAMING_ADD_HEADERS_TO_EACH_RESULT
             = "transport.vfs.StreamingAddHeadersToEachResult";
 
+    // Failed-record handling for streaming CHUNK/RECORD modes.
+    //
+    // Some formats (notably JSONL) tolerate a bad record without invalidating the whole file: a
+    // line that fails to parse is a recoverable, per-record failure. When the siphon is enabled the
+    // raw bytes of each failed record are appended to a per-source-file sidecar in the configured
+    // failed-records folder, and processing continues with the remaining records; the source file
+    // itself is treated as a success. This is complementary to (not a replacement for) the
+    // non-recoverable, whole-file failure path used for structural/IO errors.
+
+    // VFS URI of the folder to which siphoned failed records are appended (one sidecar file per
+    // source file, named by inserting a '.fail' marker before the extension, e.g. input.jsonl ->
+    // input.fail.jsonl, so it never collides with a whole-file failure of the same source). When
+    // empty, falls back to the MoveAfterFailure fault folder; if that is also empty, failed records
+    // are logged only.
+    public static final String STREAMING_FAILED_RECORDS_FOLDER
+            = "transport.vfs.StreamingFailedRecordsFolder";
+
+    // Whether recoverable per-record failures are siphoned and skipped (true) instead of failing
+    // the whole file. When unset, defaults to true for the JSONL input format and false otherwise.
+    public static final String STREAMING_SKIP_FAILED_RECORDS
+            = "transport.vfs.StreamingSkipFailedRecords";
+
+    // Maximum number of failed records tolerated before the whole file is treated as a complete
+    // failure (moved to the fault folder / deleted per ActionAfterFailure). -1 means unlimited.
+    public static final String STREAMING_MAX_FAILED_RECORDS
+            = "transport.vfs.StreamingMaxFailedRecords";
+    public static final int DEFAULT_STREAMING_MAX_FAILED_RECORDS = -1;
+
     public static final String MAX_RETRY_COUNT = "transport.vfs.MaxRetryCount";
     public static final String FORCE_CREATE_FOLDER = "transport.vfs.CreateFolder";
     public static final String RECONNECT_TIMEOUT = "transport.vfs.ReconnectTimeout";

@@ -109,7 +109,7 @@ public class VFSConsumer extends GenericPollingConsumer {
 
         // Handlers (wire your concrete actions here)
         this.fileInjectHandler = new FileInjectHandler(injectingSeq, onErrorSeq, sequential, synapseEnvironment,
-                vfsConfig);
+                vfsConfig, fsManager);
         this.preProcessingHandler = new PreProcessingHandler();
         this.postProcessingHandler = new PostProcessingHandler();
         int actionAfterProcess = vfsConfig.getActionAfterProcess();
@@ -173,7 +173,7 @@ public class VFSConsumer extends GenericPollingConsumer {
 
         // Handlers (wire your concrete actions here)
         this.fileInjectHandler = new FileInjectHandler(injectingSeq, onErrorSeq, sequential, synapseEnvironment,
-                vfsConfig);
+                vfsConfig, fsManager);
         this.preProcessingHandler = new PreProcessingHandler();
         this.postProcessingHandler = new PostProcessingHandler();
         int actionAfterProcess = vfsConfig.getActionAfterProcess();

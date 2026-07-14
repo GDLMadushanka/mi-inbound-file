@@ -18,6 +18,7 @@
 
 package org.wso2.carbon.inbound.vfs.streaming.text;
 
+import com.google.gson.JsonArray;
 import org.junit.Assert;
 import org.junit.Test;
 import org.wso2.carbon.inbound.vfs.streaming.StreamChunk;
@@ -28,7 +29,6 @@ import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Iterator;
-import java.util.List;
 
 public class TextStreamingProcessorTest {
 
@@ -66,9 +66,9 @@ public class TextStreamingProcessorTest {
         Iterator<StreamRecord> it = processor.getRecordIterator(stream(LOG), "text/plain");
 
         StreamRecord r1 = it.next();
-        // In variable mode the raw content is not set; the line is exposed as "payload".
+        // In variable mode the raw content is not set; the line is exposed as the payload value.
         Assert.assertNull(r1.getContent());
-        Assert.assertEquals("2026-07-06 INFO started", r1.getJSONPayload().get("payload"));
+        Assert.assertEquals("2026-07-06 INFO started", r1.getJSONPayload().getAsString());
     }
 
     @Test
@@ -97,15 +97,15 @@ public class TextStreamingProcessorTest {
         Iterator<StreamChunk> it = processor.getChunkIterator(stream(LOG), "text/plain", 2);
 
         StreamChunk c1 = it.next();
-        List<String> payload = (List<String>) c1.getJSONPayload().get("payload");
+        JsonArray payload = c1.getJSONPayload().getAsJsonArray();
         Assert.assertEquals(2, payload.size());
-        Assert.assertEquals("2026-07-06 INFO started", payload.get(0));
-        Assert.assertEquals("2026-07-06 WARN disk low", payload.get(1));
+        Assert.assertEquals("2026-07-06 INFO started", payload.get(0).getAsString());
+        Assert.assertEquals("2026-07-06 WARN disk low", payload.get(1).getAsString());
 
         StreamChunk c2 = it.next();
-        List<String> payload2 = (List<String>) c2.getJSONPayload().get("payload");
+        JsonArray payload2 = c2.getJSONPayload().getAsJsonArray();
         Assert.assertEquals(1, payload2.size());
-        Assert.assertEquals("2026-07-06 ERROR crash", payload2.get(0));
+        Assert.assertEquals("2026-07-06 ERROR crash", payload2.get(0).getAsString());
     }
 
     @Test

@@ -67,4 +67,16 @@ public interface StreamingProcessor {
      */
     Iterator<StreamRecord> getRecordIterator(InputStream input, String contentType) throws StreamingException;
 
+    /**
+     * Serialize the valid records of a chunk into a single raw message body, in this format's
+     * native representation (e.g. newline-joined lines for text/CSV, a JSON array for JSON/JSONL).
+     * <p>
+     * Used only in raw-content chunk mode (i.e. when the output is not routed to a variable).
+     * Invalid records are excluded - they are siphoned to the failed-records file separately.
+     *
+     * @param chunk the chunk whose valid records should be serialized
+     * @return the chunk body bytes, encoded with the chunk's charset
+     */
+    byte[] buildChunkBody(StreamChunk chunk);
+
 }

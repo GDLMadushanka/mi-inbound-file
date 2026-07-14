@@ -22,6 +22,7 @@ import org.wso2.carbon.inbound.vfs.VFSConfig;
 import org.wso2.carbon.inbound.vfs.VFSConstants;
 import org.wso2.carbon.inbound.vfs.streaming.csv.CSVStreamingProcessor;
 import org.wso2.carbon.inbound.vfs.streaming.json.JSONStreamingProcessor;
+import org.wso2.carbon.inbound.vfs.streaming.jsonl.JSONLStreamingProcessor;
 import org.wso2.carbon.inbound.vfs.streaming.text.TextStreamingProcessor;
 
 /**
@@ -65,6 +66,10 @@ public class StreamingProcessorFactory {
                 return new JSONStreamingProcessor(
                         config.getStreamingBufferSize(),
                         config.getStreamingJsonPath(),
+                        config.isStreamingAddOutputToVariable());
+            case VFSConstants.STREAMING_FORMAT_JSONL:
+                return new JSONLStreamingProcessor(
+                        config.getStreamingBufferSize(),
                         config.isStreamingAddOutputToVariable());
             // XML processor is not implemented yet.
             default:

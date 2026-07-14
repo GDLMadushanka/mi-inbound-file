@@ -102,4 +102,47 @@ public abstract class ChunkedDataProcessor implements StreamingProcessor {
     public abstract Iterator<StreamChunk> getChunkIterator(InputStream input, String contentType,
         int chunkSize) throws StreamingException;
 
+    /**
+     * Default line-oriented chunk body: joins each valid record's raw content with the platform
+     * line separator. Suitable for text and CSV; formats whose records are not newline-delimited
+     * (e.g. JSON/JSONL) override this.
+     */
+    @Override
+    public byte[] buildChunkBody(StreamChunk chunk) {
+        Charset charset = chunk.getEncoding();
+        StringBuilder sb = new StringBuilder();
+        for (StreamRecord record : chunk.getRecords()) {
+            if (!record.isValid() || record.getContent() == null) {
+                continue;
+            }
+            if (sb.length() > 0) {
+                sb.append(System.lineSeparator());
+            }
+            sb.append(new String(record.getContent(), charset));
+        }
+        return sb.toString().getBytes(charset);
+    }
+
+    /**
+     * Helper for array-oriented formats: wrap the valid records' raw content (each already a valid
+     * compact JSON value) in a JSON array, e.g. {@code [{...},{...}]}. Invalid records are excluded.
+     */
+    protected byte[] buildJsonArrayChunkBody(StreamChunk chunk) {
+        Charset charset = chunk.getEncoding();
+        StringBuilder sb = new StringBuilder("[");
+        boolean first = true;
+        for (StreamRecord record : chunk.getRecords()) {
+            if (!record.isValid() || record.getContent() == null) {
+                continue;
+            }
+            if (!first) {
+                sb.append(',');
+            }
+            sb.append(new String(record.getContent(), charset));
+            first = false;
+        }
+        sb.append(']');
+        return sb.toString().getBytes(charset);
+    }
+
 }
