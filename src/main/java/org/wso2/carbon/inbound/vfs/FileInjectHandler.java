@@ -302,7 +302,7 @@ public class FileInjectHandler {
                                 + ". Continuing with next chunk.", ex);
                         } else {
                             log.error("Unrecoverable streaming error at row " + ex.getRowNumber()
-                                + ". Aborting processing the file : " + file.getName(), ex);
+                                + ". Aborting processing the file : " + file.getName().getBaseName(), ex);
                             return false;
                         }
                     }
@@ -332,7 +332,7 @@ public class FileInjectHandler {
                                     + ". Continuing with next record.", ex);
                         } else {
                             log.error("Unrecoverable streaming error at row " + ex.getRowNumber()
-                                    + ". Aborting processing the file : " + file.getName(), ex);
+                                    + ". Aborting processing the file : " + file.getName().getBaseName(), ex);
                             return false;
                         }
                     }

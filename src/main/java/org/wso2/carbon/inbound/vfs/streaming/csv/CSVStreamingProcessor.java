@@ -24,6 +24,7 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.UncheckedIOException;
 import java.nio.charset.Charset;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
@@ -189,11 +190,18 @@ public class CSVStreamingProcessor extends ChunkedDataProcessor {
         }
 
         private void advanceToNextRecord() {
-            if (csvIterator.hasNext()) {
-                nextRecord = csvIterator.next();
-            } else {
-                nextRecord = null;
-                eof = true;
+            try {
+                if (csvIterator.hasNext()) {
+                    nextRecord = csvIterator.next();
+                } else {
+                    nextRecord = null;
+                    eof = true;
+                }
+            } catch (UncheckedIOException ex) {
+                long errorRecordNumber = recordCount + 1;
+                if (hasHeader) errorRecordNumber++;
+                throw new StreamingException("Error reading CSV record", ex.getCause(),
+                    errorRecordNumber, false);
             }
         }
 
@@ -207,17 +215,7 @@ public class CSVStreamingProcessor extends ChunkedDataProcessor {
             if (!hasNext()) {
                 throw new NoSuchElementException("No more records to iterate");
             }
-            try {
-                return getNextBatchChunk();
-            } catch (Exception e) {
-                StreamChunk errorChunk = new StreamChunk(chunkSize);
-                errorChunk.setValid(false);
-                errorChunk.setParseError("CSV processing error: " + e.getMessage());
-                if (log.isWarnEnabled()) {
-                    log.warn("CSV processing error at record " + recordCount, e);
-                }
-                return errorChunk;
-            }
+            return getNextBatchChunk();
         }
 
         /**
@@ -346,11 +344,18 @@ public class CSVStreamingProcessor extends ChunkedDataProcessor {
         }
 
         private void advanceToNextRecord() {
-            if (csvIterator.hasNext()) {
-                nextRecord = csvIterator.next();
-            } else {
-                nextRecord = null;
-                eof = true;
+            try {
+                if (csvIterator.hasNext()) {
+                    nextRecord = csvIterator.next();
+                } else {
+                    nextRecord = null;
+                    eof = true;
+                }
+            } catch (UncheckedIOException ex) {
+                long errorRecordNumber = recordCount + 1;
+                if (hasHeader) errorRecordNumber++;
+                throw new StreamingException("Error reading CSV record", ex.getCause(),
+                    errorRecordNumber, false);
             }
         }
 
