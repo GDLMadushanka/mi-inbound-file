@@ -32,6 +32,7 @@ import org.apache.commons.csv.CSVParser;
 import org.apache.commons.csv.CSVRecord;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.jetbrains.annotations.NotNull;
 import org.wso2.carbon.inbound.vfs.streaming.ChunkedDataProcessor;
 import org.wso2.carbon.inbound.vfs.streaming.StreamChunk;
 import org.wso2.carbon.inbound.vfs.streaming.StreamRecord;
@@ -233,6 +234,12 @@ public class CSVStreamingProcessor extends ChunkedDataProcessor {
             if (addOutputToVariable) {
                 resultsArray = new JsonArray();
                 chunk.setJSONPayload(resultsArray);
+            } else {
+                // adding header as first record in the chunk if configured to do so
+                if (addHeadersToEachResult && headers != null && headers.length > 0) {
+                    StreamRecord streamRecord = getStreamRecord();
+                    chunk.addRecord(streamRecord);
+                }
             }
 
             int rowsInChunk = 0;
@@ -243,7 +250,7 @@ public class CSVStreamingProcessor extends ChunkedDataProcessor {
                 rowsInChunk++;
 
                 // Create StreamRecord for this row
-                StreamRecord streamRecord = new StreamRecord(recordCount + (hasHeader ? 1 : 0));
+                StreamRecord streamRecord = new StreamRecord(recordCount);
                 streamRecord.setEncoding(charset);
                 streamRecord.setValid(true);
 
@@ -278,6 +285,22 @@ public class CSVStreamingProcessor extends ChunkedDataProcessor {
             }
 
             return chunk;
+        }
+
+        @NotNull
+        private StreamRecord getStreamRecord() {
+            StringBuilder sb = new StringBuilder();
+            for (int i = 0; i < headers.length; i++) {
+                sb.append(headers[i]);
+                if (i < headers.length - 1) {
+                    sb.append(delimiter);
+                }
+            }
+            StreamRecord streamRecord = new StreamRecord(recordCount);
+            streamRecord.setEncoding(charset);
+            streamRecord.setValid(true);
+            streamRecord.setContent(sb.toString().getBytes(charset));
+            return streamRecord;
         }
 
         @Override
@@ -347,7 +370,7 @@ public class CSVStreamingProcessor extends ChunkedDataProcessor {
             advanceToNextRecord();
 
             try {
-                StreamRecord streamRecord = new StreamRecord(recordCount + (hasHeader ? 1 : 0));
+                StreamRecord streamRecord = new StreamRecord(recordCount);
                 streamRecord.setEncoding(charset);
                 streamRecord.setValid(true);
 
@@ -388,7 +411,7 @@ public class CSVStreamingProcessor extends ChunkedDataProcessor {
                 return streamRecord;
 
             } catch (Exception e) {
-                StreamRecord errorRecord = new StreamRecord(recordCount + (hasHeader ? 1 : 0));
+                StreamRecord errorRecord = new StreamRecord(recordCount);
                 errorRecord.setValid(false);
                 errorRecord.setParseError("CSV parsing error: " + e.getMessage());
 

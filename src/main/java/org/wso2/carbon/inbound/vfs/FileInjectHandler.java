@@ -18,15 +18,14 @@
 
 package org.wso2.carbon.inbound.vfs;
 
-import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import java.util.HashMap;
-import kafka.utils.Json;
 import org.apache.axiom.om.OMAbstractFactory;
 import org.apache.axiom.om.OMElement;
 import org.apache.axiom.om.util.UUIDGenerator;
 import org.apache.axiom.soap.SOAPEnvelope;
-import org.apache.axis2.Constants;
+import org.apache.axis2.AxisFault;
+import org.apache.axis2.Constants.Configuration;
 import org.apache.axis2.builder.Builder;
 import org.apache.axis2.builder.BuilderUtil;
 import org.apache.axis2.builder.SOAPBuilder;
@@ -42,6 +41,7 @@ import org.apache.commons.logging.LogFactory;
 import org.apache.synapse.SynapseConstants;
 import org.apache.synapse.commons.vfs.VFSConstants;
 import org.apache.synapse.core.SynapseEnvironment;
+import org.apache.synapse.core.axis2.Axis2MessageContext;
 import org.apache.synapse.inbound.InboundEndpoint;
 import org.apache.synapse.mediators.base.SequenceMediator;
 import org.apache.synapse.transport.customlogsetter.CustomLogSetter;
@@ -143,12 +143,12 @@ public class FileInjectHandler {
                 } catch (ParseException ex) {
                     // ignore
                 }
-                msgCtx.setProperty(Constants.Configuration.CHARACTER_SET_ENCODING, charSetEnc);
+                msgCtx.setProperty(Configuration.CHARACTER_SET_ENCODING, charSetEnc);
             }
             if (log.isDebugEnabled()) {
                 log.debug("Processed file : " + file + " of Content-type : " + contentType);
             }
-            MessageContext axis2MsgCtx = ((org.apache.synapse.core.axis2.Axis2MessageContext) msgCtx)
+            MessageContext axis2MsgCtx = ((Axis2MessageContext) msgCtx)
                     .getAxis2MessageContext();
             // Determine the message builder to use
             Builder builder;
@@ -276,20 +276,22 @@ public class FileInjectHandler {
                 while (iterator.hasNext()) {
                     try {
                         StreamChunk chunk = iterator.next();
-                        Map<String, Object> variableOutputMap = new HashMap<>();
                         byte[] body = addOutputToVariable ? null : buildChunkBody(chunk);
-                        JsonObject attributes = new JsonObject();
-                        attributes.addProperty(StreamingConstants.FIRST_RECORD_IN_CHUNK,
-                            chunk.getFirstRecordNumber());
-                        attributes.addProperty(StreamingConstants.LAST_RECORD_IN_CHUNK,
-                            chunk.getLastRecordNumber());
-                        attributes.addProperty(StreamingConstants.CHUNK_SIZE,
-                            chunk.getRecordCount());
-                        attributes.addProperty(StreamingConstants.CHUNK_NUMBER,
-                            chunk.getChunkNumber());
-                        variableOutputMap.put(StreamingConstants.ATTRIBUTES, attributes);
+                        Map<String, Object> variableOutputMap = null;
                         if (addOutputToVariable) {
-                            variableOutputMap.put(StreamingConstants.PAYLOAD, chunk.getJSONPayload());
+                            variableOutputMap = new HashMap<>();
+                            JsonObject attributes = new JsonObject();
+                            attributes.addProperty(StreamingConstants.FIRST_RECORD_IN_CHUNK,
+                                chunk.getFirstRecordNumber());
+                            attributes.addProperty(StreamingConstants.LAST_RECORD_IN_CHUNK,
+                                chunk.getLastRecordNumber());
+                            attributes.addProperty(StreamingConstants.CHUNK_SIZE,
+                                chunk.getRecordCount());
+                            attributes.addProperty(StreamingConstants.CHUNK_NUMBER,
+                                chunk.getChunkNumber());
+                            variableOutputMap.put(StreamingConstants.ATTRIBUTES, attributes);
+                            variableOutputMap.put(StreamingConstants.PAYLOAD,
+                                chunk.getJSONPayload());
                         }
                         if (!injectStreamingMessage(name, contentType, body, variableOutputMap)) {
                             return false;
@@ -310,11 +312,16 @@ public class FileInjectHandler {
                 while (iterator.hasNext()) {
                     try {
                         StreamRecord record = iterator.next();
-                        Map<String, Object> variableOutputMap = new HashMap<>();
-                        JsonObject attributes = new JsonObject();
-                        attributes.addProperty(StreamingConstants.RECORD_NUMBER,
-                            record.getRecordNumber());
-                        variableOutputMap.put(StreamingConstants.ATTRIBUTES, attributes);
+                        Map<String, Object> variableOutputMap = null;
+                        if (addOutputToVariable) {
+                            variableOutputMap = new HashMap<>();
+                            JsonObject attributes = new JsonObject();
+                            attributes.addProperty(StreamingConstants.RECORD_NUMBER,
+                                record.getRecordNumber());
+                            variableOutputMap.put(StreamingConstants.ATTRIBUTES, attributes);
+                            variableOutputMap.put(StreamingConstants.PAYLOAD,
+                                record.getJSONPayload());
+                        }
                         byte[] body = addOutputToVariable ? null : record.getContent();
                         if (!injectStreamingMessage(name, contentType, body, variableOutputMap)) {
                             return false;
@@ -377,8 +384,7 @@ public class FileInjectHandler {
         InboundEndpoint inboundEndpoint = msgCtx.getConfiguration().getInboundEndpoint(name);
         CustomLogSetter.getInstance().setLogAppender(inboundEndpoint.getArtifactContainerName());
 
-        MessageContext axis2MsgCtx = ((org.apache.synapse.core.axis2.Axis2MessageContext) msgCtx)
-                .getAxis2MessageContext();
+        MessageContext axis2MsgCtx = ((Axis2MessageContext) msgCtx).getAxis2MessageContext();
 
         if (vfsProperties.isStreamingAddOutputToVariable()) {
             msgCtx.setVariable(vfsProperties.getStreamingOutputVariable(), variableOutput);
@@ -427,7 +433,7 @@ public class FileInjectHandler {
      * Select the Axis2 message builder for the given content type, falling back to SOAP.
      */
     private Builder resolveBuilder(String contentType, MessageContext axis2MsgCtx)
-            throws org.apache.axis2.AxisFault {
+            throws AxisFault {
         if (contentType == null) {
             return new SOAPBuilder();
         }
@@ -456,7 +462,7 @@ public class FileInjectHandler {
      */
     private org.apache.synapse.MessageContext createMessageContext() {
         org.apache.synapse.MessageContext msgCtx = synapseEnvironment.createMessageContext();
-        MessageContext axis2MsgCtx = ((org.apache.synapse.core.axis2.Axis2MessageContext) msgCtx)
+        MessageContext axis2MsgCtx = ((Axis2MessageContext) msgCtx)
                 .getAxis2MessageContext();
         axis2MsgCtx.setServerSide(true);
         axis2MsgCtx.setMessageID(UUIDGenerator.getUUID());
