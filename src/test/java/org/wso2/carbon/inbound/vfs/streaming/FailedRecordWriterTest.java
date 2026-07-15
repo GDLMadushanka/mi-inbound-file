@@ -24,20 +24,29 @@ import org.junit.Test;
 public class FailedRecordWriterTest {
 
     @Test
-    public void testFailedRecordsFileNaming() {
-        // A '.fail' marker is inserted before the last extension.
-        Assert.assertEquals("input.fail.jsonl",
-                FailedRecordWriter.toFailedRecordsFileName("input.jsonl"));
-        Assert.assertEquals("data.fail.csv",
-                FailedRecordWriter.toFailedRecordsFileName("data.csv"));
+    public void testParseErrorFileNaming() {
+        // The 'parse.fail' marker is inserted before the last extension.
+        Assert.assertEquals("input.parse.fail.jsonl",
+                FailedRecordWriter.toFailedRecordsFileName("input.jsonl", "parse.fail"));
+        Assert.assertEquals("data.parse.fail.csv",
+                FailedRecordWriter.toFailedRecordsFileName("data.csv", "parse.fail"));
         // Multiple dots: only the last extension is preserved after the marker.
-        Assert.assertEquals("archive.2026.fail.json",
-                FailedRecordWriter.toFailedRecordsFileName("archive.2026.json"));
+        Assert.assertEquals("archive.2026.parse.fail.json",
+                FailedRecordWriter.toFailedRecordsFileName("archive.2026.json", "parse.fail"));
         // No extension: the marker is appended.
-        Assert.assertEquals("records.fail",
-                FailedRecordWriter.toFailedRecordsFileName("records"));
+        Assert.assertEquals("records.parse.fail",
+                FailedRecordWriter.toFailedRecordsFileName("records", "parse.fail"));
         // Leading-dot (hidden) file: treated as a name, not an extension.
-        Assert.assertEquals(".gitignore.fail",
-                FailedRecordWriter.toFailedRecordsFileName(".gitignore"));
+        Assert.assertEquals(".gitignore.parse.fail",
+                FailedRecordWriter.toFailedRecordsFileName(".gitignore", "parse.fail"));
+    }
+
+    @Test
+    public void testMediationErrorFileNaming() {
+        // The mediation marker yields a distinct sidecar so it never collides with the parse sidecar.
+        Assert.assertEquals("input.mediation.fail.jsonl",
+                FailedRecordWriter.toFailedRecordsFileName("input.jsonl", "mediation.fail"));
+        Assert.assertEquals("data.mediation.fail",
+                FailedRecordWriter.toFailedRecordsFileName("data", "mediation.fail"));
     }
 }

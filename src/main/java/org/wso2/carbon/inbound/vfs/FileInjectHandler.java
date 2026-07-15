@@ -38,6 +38,7 @@ import org.apache.synapse.core.axis2.Axis2MessageContext;
 import org.apache.synapse.inbound.InboundEndpoint;
 import org.apache.synapse.mediators.base.SequenceMediator;
 import org.apache.synapse.transport.customlogsetter.CustomLogSetter;
+import org.wso2.carbon.inbound.vfs.streaming.StreamingConstants;
 import org.wso2.org.apache.commons.vfs2.FileObject;
 import org.wso2.org.apache.commons.vfs2.FileSystemManager;
 
@@ -82,9 +83,9 @@ public class FileInjectHandler extends AbstractInjectHandler {
 
         if (vfsProperties.isStreaming()) {
             String mode = vfsProperties.getStreamingMode();
-            if (org.wso2.carbon.inbound.vfs.VFSConstants.STREAMING_MODE_CHUNK.equalsIgnoreCase(mode)) {
+            if (StreamingConstants.STREAMING_MODE_CHUNK.equalsIgnoreCase(mode)) {
                 return newStreamHandler().stream(file, name, true);
-            } else if (org.wso2.carbon.inbound.vfs.VFSConstants.STREAMING_MODE_RECORD.equalsIgnoreCase(mode)) {
+            } else if (StreamingConstants.STREAMING_MODE_RECORD.equalsIgnoreCase(mode)) {
                 return newStreamHandler().stream(file, name, false);
             }
             // ENTIRE_FILE (default) falls through to the whole-file behaviour below.
@@ -97,7 +98,9 @@ public class FileInjectHandler extends AbstractInjectHandler {
      * transport headers / file URI.
      */
     private StreamInjectHandler newStreamHandler() {
-        StreamInjectHandler handler = new StreamInjectHandler(injectingSeq, onErrorSeq, sequential,
+        // Streaming forces sequential injection (see StreamInjectHandler) regardless of the
+        // inbound's configured 'sequential' setting.
+        StreamInjectHandler handler = new StreamInjectHandler(injectingSeq, onErrorSeq,
                 synapseEnvironment, vfsProperties, fsManager);
         handler.setTransportHeaders(transportHeaders);
         handler.setFileURI(fileURI);

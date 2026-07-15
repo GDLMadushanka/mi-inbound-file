@@ -19,7 +19,6 @@
 package org.wso2.carbon.inbound.vfs.streaming;
 
 import org.wso2.carbon.inbound.vfs.VFSConfig;
-import org.wso2.carbon.inbound.vfs.VFSConstants;
 import org.wso2.carbon.inbound.vfs.streaming.csv.CSVStreamingProcessor;
 import org.wso2.carbon.inbound.vfs.streaming.json.JSONStreamingProcessor;
 import org.wso2.carbon.inbound.vfs.streaming.jsonl.JSONLStreamingProcessor;
@@ -50,7 +49,7 @@ public class StreamingProcessorFactory {
         }
 
         switch (format.toLowerCase()) {
-            case VFSConstants.STREAMING_FORMAT_CSV:
+            case StreamingConstants.STREAMING_FORMAT_CSV:
                 return new CSVStreamingProcessor(
                         config.getStreamingBufferSize(),
                         config.getStreamingCsvDelimiter(),
@@ -58,16 +57,16 @@ public class StreamingProcessorFactory {
                         config.isStreamingCsvHasHeader(),
                         config.isStreamingAddOutputToVariable(),
                         config.isStreamingAddHeadersToEachResult());
-            case VFSConstants.STREAMING_FORMAT_TEXT:
+            case StreamingConstants.STREAMING_FORMAT_TEXT:
                 return new TextStreamingProcessor(
                         config.getStreamingBufferSize(),
                         config.isStreamingAddOutputToVariable());
-            case VFSConstants.STREAMING_FORMAT_JSON:
+            case StreamingConstants.STREAMING_FORMAT_JSON:
                 return new JSONStreamingProcessor(
                         config.getStreamingBufferSize(),
                         config.getStreamingJsonPath(),
                         config.isStreamingAddOutputToVariable());
-            case VFSConstants.STREAMING_FORMAT_JSONL:
+            case StreamingConstants.STREAMING_FORMAT_JSONL:
                 return new JSONLStreamingProcessor(
                         config.getStreamingBufferSize(),
                         config.isStreamingAddOutputToVariable());

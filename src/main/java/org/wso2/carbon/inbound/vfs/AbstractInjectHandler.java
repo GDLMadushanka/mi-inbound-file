@@ -32,6 +32,7 @@ import org.apache.synapse.core.SynapseEnvironment;
 import org.apache.synapse.core.axis2.Axis2MessageContext;
 import org.apache.synapse.mediators.base.SequenceMediator;
 
+import java.util.HashMap;
 import java.util.Map;
 
 import static org.apache.axis2.context.MessageContext.TRANSPORT_HEADERS;
@@ -73,7 +74,12 @@ public abstract class AbstractInjectHandler {
         MessageContext axis2MsgCtx = ((Axis2MessageContext) msgCtx).getAxis2MessageContext();
         axis2MsgCtx.setServerSide(true);
         axis2MsgCtx.setMessageID(UUIDGenerator.getUUID());
-        axis2MsgCtx.setProperty(TRANSPORT_HEADERS, transportHeaders);
+        // Each message gets its OWN copy of the transport headers. The map is mutated during
+        // mediation (e.g. ERROR_CODE is written on failure), so sharing one instance across the
+        // many message contexts of a streamed file would leak one record's error onto every
+        // subsequent record and mark them all as failures.
+        axis2MsgCtx.setProperty(TRANSPORT_HEADERS,
+                transportHeaders != null ? new HashMap<>(transportHeaders) : new HashMap<>());
         msgCtx.setProperty(MessageContext.CLIENT_API_NON_BLOCKING, true);
         return msgCtx;
     }

@@ -33,11 +33,13 @@ import java.util.Map;
 import java.util.Properties;
 
 /**
- * Appends the raw bytes of recoverable, per-record streaming failures to a sidecar file in the
- * configured failed-records folder, one file per source file. The sidecar name inserts a
- * {@code .fail} marker before the source extension (e.g. {@code input.jsonl} produces
- * {@code input.fail.jsonl}) so that whole-file failures (which keep the original name) and
- * failed-record sidecars can share the same fault folder without colliding.
+ * Appends the raw bytes of recoverable, per-record streaming failures to a sidecar file in a
+ * configured folder, one file per source file. The sidecar name inserts a caller-supplied marker
+ * before the source extension (e.g. marker {@code "parse.fail"} turns {@code input.jsonl} into
+ * {@code input.parse.fail.jsonl}; marker {@code "mediation.fail"} into
+ * {@code input.mediation.fail.jsonl}) so that whole-file failures (which keep the original name),
+ * parse-error sidecars and mediation-error sidecars can all share the same fault folder without
+ * colliding.
  * <p>
  * The destination is created lazily on the first {@link #append(byte[])} call, so a source file
  * with no failed records produces no sidecar. Bytes are written verbatim followed by a single
@@ -56,6 +58,7 @@ public class FailedRecordWriter implements Closeable {
     private final VFSConfig vfsConfig;
     private final String folderUri;
     private final String sourceBaseName;
+    private final String marker;
 
     private boolean initialized;
     private FileObject destFile;
@@ -66,27 +69,31 @@ public class FailedRecordWriter implements Closeable {
      * @param fsManager      the VFS manager used to resolve the destination
      * @param vfsConfig      the inbound VFS configuration (for scheme options)
      * @param folderUri      VFS URI of the destination folder (must be non-empty)
-     * @param sourceBaseName base name of the source file; a {@code .fail} marker is inserted before
-     *                       its extension to form the sidecar name
+     * @param sourceBaseName base name of the source file
+     * @param marker         marker inserted before the source extension to form the sidecar name,
+     *                       e.g. {@code "fail"} gives {@code input.fail.jsonl} and
+     *                       {@code "mediation.fail"} gives {@code input.mediation.fail.jsonl}
      */
     public FailedRecordWriter(FileSystemManager fsManager, VFSConfig vfsConfig, String folderUri,
-                              String sourceBaseName) {
+                              String sourceBaseName, String marker) {
         this.fsManager = fsManager;
         this.vfsConfig = vfsConfig;
         this.folderUri = folderUri;
         this.sourceBaseName = sourceBaseName;
+        this.marker = marker;
     }
 
     /**
-     * Derive the sidecar file name from the source base name by inserting a {@code .fail} marker
-     * before the extension: {@code input.jsonl -> input.fail.jsonl}, {@code data -> data.fail}.
+     * Derive the sidecar file name from the source base name by inserting {@code .<marker>} before
+     * the extension: {@code toFailedRecordsFileName("input.jsonl", "fail") -> input.fail.jsonl},
+     * {@code toFailedRecordsFileName("data", "fail") -> data.fail}.
      */
-    static String toFailedRecordsFileName(String baseName) {
+    static String toFailedRecordsFileName(String baseName, String marker) {
         int dot = baseName.lastIndexOf('.');
         if (dot > 0) {
-            return baseName.substring(0, dot) + ".fail" + baseName.substring(dot);
+            return baseName.substring(0, dot) + "." + marker + baseName.substring(dot);
         }
-        return baseName + ".fail";
+        return baseName + "." + marker;
     }
 
     /**
@@ -128,7 +135,7 @@ public class FailedRecordWriter implements Closeable {
             FileSystemOptions fso = Utils.attachFileSystemOptions(query, fsManager);
             FileObject folder = fsManager.resolveFile(location, fso);
             folder.createFolder();
-            destFile = folder.resolveFile(toFailedRecordsFileName(sourceBaseName));
+            destFile = folder.resolveFile(toFailedRecordsFileName(sourceBaseName, marker));
             // Append so repeated runs / multiple chunks accumulate into one sidecar.
             out = destFile.getContent().getOutputStream(true);
             if (log.isDebugEnabled()) {

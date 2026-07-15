@@ -25,6 +25,7 @@ import org.apache.commons.lang.StringUtils;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.synapse.commons.crypto.CryptoUtil;
+import org.wso2.carbon.inbound.vfs.streaming.StreamingConstants;
 import org.wso2.org.apache.commons.vfs2.FileSystemException;
 
 import java.net.UnknownHostException;
@@ -122,9 +123,10 @@ public class VFSConfig {
     private char streamingCsvDelimiter;
     private char streamingCsvQuote;
     private boolean streamingCsvHasHeader;
-    private String streamingFailedRecordsFolder;
-    private boolean streamingSkipFailedRecords;
-    private int streamingMaxFailedRecords;
+    private String streamingParseErrorAction;
+    private String streamingParseErrorFolder;
+    private String streamingMediationErrorAction;
+    private String streamingMediationErrorFolder;
     private boolean build;
     private int maxRetryCount;
     private long reconnectTimeout;
@@ -182,49 +184,47 @@ public class VFSConfig {
         this.updateLastModified = Boolean.parseBoolean(
                 properties.getProperty(VFSConstants.UPDATE_LAST_MODIFIED, "false"));
         this.streaming = Boolean.parseBoolean(
-                properties.getProperty(VFSConstants.STREAMING, "false"));
+                properties.getProperty(StreamingConstants.STREAMING, "false"));
 
         // Streaming mode and its parameters (only relevant when streaming is enabled).
         this.streamingMode = properties.getProperty(
-                VFSConstants.STREAMING_MODE, VFSConstants.STREAMING_MODE_ENTIRE_FILE);
+                StreamingConstants.STREAMING_MODE, StreamingConstants.STREAMING_MODE_ENTIRE_FILE);
         this.streamingInputFormat = properties.getProperty(
-                VFSConstants.STREAMING_INPUT_FORMAT, VFSConstants.DEFAULT_STREAMING_INPUT_FORMAT);
+                StreamingConstants.STREAMING_INPUT_FORMAT, StreamingConstants.DEFAULT_STREAMING_INPUT_FORMAT);
         this.streamingJsonPath = properties.getProperty(
-                VFSConstants.STREAMING_JSON_PATH, VFSConstants.DEFAULT_STREAMING_JSON_PATH);
+                StreamingConstants.STREAMING_JSON_PATH, StreamingConstants.DEFAULT_STREAMING_JSON_PATH);
         this.streamingBufferSize = Integer.parseInt(
-                properties.getProperty(VFSConstants.STREAMING_BUFFER_SIZE,
-                        String.valueOf(VFSConstants.DEFAULT_STREAMING_BUFFER_SIZE)));
+                properties.getProperty(StreamingConstants.STREAMING_BUFFER_SIZE,
+                        String.valueOf(StreamingConstants.DEFAULT_STREAMING_BUFFER_SIZE)));
         this.streamingChunkSize = Integer.parseInt(
-                properties.getProperty(VFSConstants.STREAMING_CHUNK_SIZE,
-                        String.valueOf(VFSConstants.DEFAULT_STREAMING_CHUNK_SIZE)));
-        this.streamingOutputVariable = properties.getProperty(VFSConstants.STREAMING_OUTPUT_VARIABLE);
+                properties.getProperty(StreamingConstants.STREAMING_CHUNK_SIZE,
+                        String.valueOf(StreamingConstants.DEFAULT_STREAMING_CHUNK_SIZE)));
+        this.streamingOutputVariable = properties.getProperty(StreamingConstants.STREAMING_OUTPUT_VARIABLE);
         this.streamingAddHeadersToEachResult = Boolean.parseBoolean(
-                properties.getProperty(VFSConstants.STREAMING_ADD_HEADERS_TO_EACH_RESULT, "false"));
+                properties.getProperty(StreamingConstants.STREAMING_ADD_HEADERS_TO_EACH_RESULT, "false"));
         this.streamingCsvDelimiter = firstCharOrDefault(
-                properties.getProperty(VFSConstants.STREAMING_CSV_DELIMITER), ',');
+                properties.getProperty(StreamingConstants.STREAMING_CSV_DELIMITER), ',');
         this.streamingCsvQuote = firstCharOrDefault(
-                properties.getProperty(VFSConstants.STREAMING_CSV_QUOTE), '"');
+                properties.getProperty(StreamingConstants.STREAMING_CSV_QUOTE), '"');
         this.streamingCsvHasHeader = Boolean.parseBoolean(
-                properties.getProperty(VFSConstants.STREAMING_CSV_HAS_HEADER, "true"));
-        this.streamingFailedRecordsFolder =
-                properties.getProperty(VFSConstants.STREAMING_FAILED_RECORDS_FOLDER);
-        // The failed-record siphon defaults on for JSONL (a bad line does not invalidate the file)
-        // and off for every other format, but an explicit value always wins.
-        boolean defaultSkipFailedRecords =
-                VFSConstants.STREAMING_FORMAT_JSONL.equalsIgnoreCase(this.streamingInputFormat);
-        this.streamingSkipFailedRecords = Boolean.parseBoolean(
-                properties.getProperty(VFSConstants.STREAMING_SKIP_FAILED_RECORDS,
-                        String.valueOf(defaultSkipFailedRecords)));
-        this.streamingMaxFailedRecords = Integer.parseInt(
-                properties.getProperty(VFSConstants.STREAMING_MAX_FAILED_RECORDS,
-                        String.valueOf(VFSConstants.DEFAULT_STREAMING_MAX_FAILED_RECORDS)));
+                properties.getProperty(StreamingConstants.STREAMING_CSV_HAS_HEADER, "true"));
+        this.streamingParseErrorAction = properties.getProperty(
+                StreamingConstants.STREAMING_PARSE_ERROR_ACTION,
+                StreamingConstants.DEFAULT_STREAMING_ERROR_ACTION);
+        this.streamingParseErrorFolder =
+                properties.getProperty(StreamingConstants.STREAMING_PARSE_ERROR_FOLDER);
+        this.streamingMediationErrorAction = properties.getProperty(
+                StreamingConstants.STREAMING_MEDIATION_ERROR_ACTION,
+                StreamingConstants.DEFAULT_STREAMING_ERROR_ACTION);
+        this.streamingMediationErrorFolder =
+                properties.getProperty(StreamingConstants.STREAMING_MEDIATION_ERROR_FOLDER);
         this.streamingCharset = properties.getProperty(
-                VFSConstants.STREAMING_CHARSET, VFSConstants.DEFAULT_STREAMING_CHARSET);
+                StreamingConstants.STREAMING_CHARSET, StreamingConstants.DEFAULT_STREAMING_CHARSET);
         // In streaming CHUNK/RECORD modes the content type is fixed by the input format. The charset
         // is a separate, user-configurable axis; fold it into the content type so the streaming
         // reader (which parses ';charset=') and the message builder both pick it up.
         String baseContentType = resolveStreamingContentType(this.streamingInputFormat);
-        if (streaming && !VFSConstants.STREAMING_MODE_ENTIRE_FILE.equalsIgnoreCase(streamingMode)) {
+        if (streaming && !StreamingConstants.STREAMING_MODE_ENTIRE_FILE.equalsIgnoreCase(streamingMode)) {
             validateStreamingCharset(this.streamingCharset);
             this.streamingContentType = baseContentType + "; charset=" + this.streamingCharset;
             warnOnContentTypeMismatch(baseContentType);
@@ -593,27 +593,37 @@ public class VFSConfig {
     }
 
     /**
-     * VFS URI of the folder where siphoned failed records are appended, or null/empty if not
-     * configured (callers then fall back to the fault folder, or log-only).
+     * Action for a record that fails to parse (MOVE or DROP). Applies to JSONL, whose parse errors
+     * are per-record; defaults to MOVE.
      */
-    public String getStreamingFailedRecordsFolder() {
-        return streamingFailedRecordsFolder;
+    public String getStreamingParseErrorAction() {
+        return streamingParseErrorAction;
     }
 
     /**
-     * True when recoverable per-record failures should be siphoned to the failed-records file and
-     * skipped, leaving the source file a success. Defaults to true for JSONL and false otherwise.
+     * VFS URI of the folder where parse-error records are moved (when the parse-error action is
+     * MOVE), or null/empty if not configured (callers then fall back to the fault folder, or
+     * log-only).
      */
-    public boolean isStreamingSkipFailedRecords() {
-        return streamingSkipFailedRecords;
+    public String getStreamingParseErrorFolder() {
+        return streamingParseErrorFolder;
     }
 
     /**
-     * Maximum number of failed records tolerated before the whole file is treated as a complete
-     * failure. -1 means unlimited.
+     * Action for a record/chunk whose mediation fails (MOVE or DROP). Applies to every streaming
+     * format; defaults to MOVE.
      */
-    public int getStreamingMaxFailedRecords() {
-        return streamingMaxFailedRecords;
+    public String getStreamingMediationErrorAction() {
+        return streamingMediationErrorAction;
+    }
+
+    /**
+     * VFS URI of the folder where mediation-error records are moved (when the mediation-error action
+     * is MOVE), or null/empty if not configured (callers then fall back to the parse-error folder,
+     * the fault folder, or log-only).
+     */
+    public String getStreamingMediationErrorFolder() {
+        return streamingMediationErrorFolder;
     }
 
     /**
@@ -630,20 +640,20 @@ public class VFSConfig {
      */
     private static String resolveStreamingContentType(String format) {
         if (format == null) {
-            return VFSConstants.STREAMING_CONTENT_TYPE_TEXT;
+            return StreamingConstants.STREAMING_CONTENT_TYPE_TEXT;
         }
         switch (format.toLowerCase()) {
-            case VFSConstants.STREAMING_FORMAT_CSV:
-                return VFSConstants.STREAMING_CONTENT_TYPE_CSV;
-            case VFSConstants.STREAMING_FORMAT_JSON:
-            case VFSConstants.STREAMING_FORMAT_JSONL:
+            case StreamingConstants.STREAMING_FORMAT_CSV:
+                return StreamingConstants.STREAMING_CONTENT_TYPE_CSV;
+            case StreamingConstants.STREAMING_FORMAT_JSON:
+            case StreamingConstants.STREAMING_FORMAT_JSONL:
                 // Each JSONL record is itself a JSON value, so records build as application/json.
-                return VFSConstants.STREAMING_CONTENT_TYPE_JSON;
-            case VFSConstants.STREAMING_FORMAT_XML:
-                return VFSConstants.STREAMING_CONTENT_TYPE_XML;
-            case VFSConstants.STREAMING_FORMAT_TEXT:
+                return StreamingConstants.STREAMING_CONTENT_TYPE_JSON;
+            case StreamingConstants.STREAMING_FORMAT_XML:
+                return StreamingConstants.STREAMING_CONTENT_TYPE_XML;
+            case StreamingConstants.STREAMING_FORMAT_TEXT:
             default:
-                return VFSConstants.STREAMING_CONTENT_TYPE_TEXT;
+                return StreamingConstants.STREAMING_CONTENT_TYPE_TEXT;
         }
     }
 
@@ -678,7 +688,7 @@ public class VFSConfig {
             supported = false;  // malformed charset name
         }
         if (!supported) {
-            throw new IllegalArgumentException("Unsupported " + VFSConstants.STREAMING_CHARSET
+            throw new IllegalArgumentException("Unsupported " + StreamingConstants.STREAMING_CHARSET
                     + " value: '" + name + "'");
         }
     }

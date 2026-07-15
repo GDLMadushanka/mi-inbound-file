@@ -20,6 +20,7 @@ package org.wso2.carbon.inbound.vfs;
 
 import org.junit.Assert;
 import org.junit.Test;
+import org.wso2.carbon.inbound.vfs.streaming.StreamingConstants;
 
 import java.util.Properties;
 
@@ -31,44 +32,44 @@ public class VFSConfigStreamingCharsetTest {
 
     private Properties streamingProps(String format, String charset) {
         Properties p = new Properties();
-        p.setProperty(VFSConstants.STREAMING, "true");
-        p.setProperty(VFSConstants.STREAMING_MODE, VFSConstants.STREAMING_MODE_RECORD);
-        p.setProperty(VFSConstants.STREAMING_INPUT_FORMAT, format);
+        p.setProperty(StreamingConstants.STREAMING, "true");
+        p.setProperty(StreamingConstants.STREAMING_MODE, StreamingConstants.STREAMING_MODE_RECORD);
+        p.setProperty(StreamingConstants.STREAMING_INPUT_FORMAT, format);
         if (charset != null) {
-            p.setProperty(VFSConstants.STREAMING_CHARSET, charset);
+            p.setProperty(StreamingConstants.STREAMING_CHARSET, charset);
         }
         return p;
     }
 
     @Test
     public void testDefaultCharsetFoldedIntoContentType() {
-        VFSConfig config = new VFSConfig(streamingProps(VFSConstants.STREAMING_FORMAT_JSON, null));
+        VFSConfig config = new VFSConfig(streamingProps(StreamingConstants.STREAMING_FORMAT_JSON, null));
         Assert.assertEquals("UTF-8", config.getStreamingCharset());
         Assert.assertEquals("application/json; charset=UTF-8", config.getStreamingContentType());
     }
 
     @Test
     public void testCustomCharsetFoldedIntoContentType() {
-        VFSConfig config = new VFSConfig(streamingProps(VFSConstants.STREAMING_FORMAT_CSV, "UTF-16"));
+        VFSConfig config = new VFSConfig(streamingProps(StreamingConstants.STREAMING_FORMAT_CSV, "UTF-16"));
         Assert.assertEquals("UTF-16", config.getStreamingCharset());
         Assert.assertEquals("text/csv; charset=UTF-16", config.getStreamingContentType());
     }
 
     @Test
     public void testIso88591IsSupported() {
-        VFSConfig config = new VFSConfig(streamingProps(VFSConstants.STREAMING_FORMAT_TEXT, "ISO-8859-1"));
+        VFSConfig config = new VFSConfig(streamingProps(StreamingConstants.STREAMING_FORMAT_TEXT, "ISO-8859-1"));
         Assert.assertEquals("text/plain; charset=ISO-8859-1", config.getStreamingContentType());
     }
 
     @Test(expected = IllegalArgumentException.class)
     public void testInvalidCharsetFailsFast() {
-        new VFSConfig(streamingProps(VFSConstants.STREAMING_FORMAT_JSON, "NOT-A-CHARSET-123"));
+        new VFSConfig(streamingProps(StreamingConstants.STREAMING_FORMAT_JSON, "NOT-A-CHARSET-123"));
     }
 
     @Test
     public void testEntireFileModeDoesNotFoldCharset() {
-        Properties p = streamingProps(VFSConstants.STREAMING_FORMAT_JSON, "UTF-16");
-        p.setProperty(VFSConstants.STREAMING_MODE, VFSConstants.STREAMING_MODE_ENTIRE_FILE);
+        Properties p = streamingProps(StreamingConstants.STREAMING_FORMAT_JSON, "UTF-16");
+        p.setProperty(StreamingConstants.STREAMING_MODE, StreamingConstants.STREAMING_MODE_ENTIRE_FILE);
         VFSConfig config = new VFSConfig(p);
         // ENTIRE_FILE does not stream-parse, so no charset is folded into the content type.
         Assert.assertEquals("application/json", config.getStreamingContentType());
@@ -77,9 +78,9 @@ public class VFSConfigStreamingCharsetTest {
     @Test
     public void testStreamingDisabledDoesNotFoldCharset() {
         Properties p = new Properties();
-        p.setProperty(VFSConstants.STREAMING, "false");
-        p.setProperty(VFSConstants.STREAMING_INPUT_FORMAT, VFSConstants.STREAMING_FORMAT_JSON);
-        p.setProperty(VFSConstants.STREAMING_CHARSET, "UTF-16");
+        p.setProperty(StreamingConstants.STREAMING, "false");
+        p.setProperty(StreamingConstants.STREAMING_INPUT_FORMAT, StreamingConstants.STREAMING_FORMAT_JSON);
+        p.setProperty(StreamingConstants.STREAMING_CHARSET, "UTF-16");
         VFSConfig config = new VFSConfig(p);
         Assert.assertEquals("application/json", config.getStreamingContentType());
     }
