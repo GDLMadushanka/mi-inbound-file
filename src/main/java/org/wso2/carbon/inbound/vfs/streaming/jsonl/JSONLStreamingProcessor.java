@@ -65,26 +65,26 @@ public class JSONLStreamingProcessor extends ChunkedDataProcessor {
     }
 
     @Override
-    public Iterator<StreamChunk> getChunkIterator(InputStream input, String contentType, int chunkSize)
-            throws StreamingException {
+    public Iterator<StreamChunk> getChunkIterator(InputStream input, String contentType, int chunkSize,
+            long startFromRecord) throws StreamingException {
         try {
             Charset charset = detectCharset(contentType);
             BufferedReader reader = new BufferedReader(
                     new InputStreamReader(input, charset), bufferSize);
-            return new JsonlChunkIterator(reader, charset, Math.max(1, chunkSize));
+            return new JsonlChunkIterator(reader, charset, Math.max(1, chunkSize), startFromRecord);
         } catch (Exception e) {
             throw new StreamingException("Failed to initialize JSONL processor", e, 0, false);
         }
     }
 
     @Override
-    public Iterator<StreamRecord> getRecordIterator(InputStream input, String contentType)
-            throws StreamingException {
+    public Iterator<StreamRecord> getRecordIterator(InputStream input, String contentType,
+            long startFromRecord) throws StreamingException {
         try {
             Charset charset = detectCharset(contentType);
             BufferedReader reader = new BufferedReader(
                     new InputStreamReader(input, charset), bufferSize);
-            return new JsonlRowIterator(reader, charset);
+            return new JsonlRowIterator(reader, charset, startFromRecord);
         } catch (Exception e) {
             throw new StreamingException("Failed to initialize JSONL processor", e, 0, false);
         }
@@ -156,10 +156,15 @@ public class JSONLStreamingProcessor extends ChunkedDataProcessor {
         private long recordCount = 0;
         private String nextLine;
 
-        JsonlRowIterator(BufferedReader reader, Charset charset) {
+        JsonlRowIterator(BufferedReader reader, Charset charset, long startFromRecord) {
             this.reader = reader;
             this.charset = charset;
             this.nextLine = nextNonBlankLine(reader, recordCount);
+            // Resume: discard the leading records already processed before the checkpoint.
+            while (recordCount < startFromRecord && nextLine != null) {
+                recordCount++;
+                nextLine = nextNonBlankLine(reader, recordCount);
+            }
         }
 
         @Override
@@ -197,11 +202,16 @@ public class JSONLStreamingProcessor extends ChunkedDataProcessor {
         private long recordCount = 0;
         private String nextLine;
 
-        JsonlChunkIterator(BufferedReader reader, Charset charset, int chunkSize) {
+        JsonlChunkIterator(BufferedReader reader, Charset charset, int chunkSize, long startFromRecord) {
             this.reader = reader;
             this.charset = charset;
             this.chunkSize = chunkSize;
             this.nextLine = nextNonBlankLine(reader, recordCount);
+            // Resume: discard the leading records already processed before the checkpoint.
+            while (recordCount < startFromRecord && nextLine != null) {
+                recordCount++;
+                nextLine = nextNonBlankLine(reader, recordCount);
+            }
         }
 
         @Override

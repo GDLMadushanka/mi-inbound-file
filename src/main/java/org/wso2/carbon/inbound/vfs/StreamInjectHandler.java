@@ -33,6 +33,8 @@ import org.apache.synapse.core.axis2.Axis2MessageContext;
 import org.wso2.carbon.inbound.vfs.streaming.FailedRecordWriter;
 import org.wso2.carbon.inbound.vfs.streaming.StreamChunk;
 import org.wso2.carbon.inbound.vfs.streaming.StreamRecord;
+import org.wso2.carbon.inbound.vfs.streaming.StreamingCheckpoint;
+import org.wso2.carbon.inbound.vfs.streaming.StreamingCheckpointManager;
 import org.wso2.carbon.inbound.vfs.streaming.StreamingConstants;
 import org.wso2.carbon.inbound.vfs.streaming.StreamingException;
 import org.wso2.carbon.inbound.vfs.streaming.StreamingProcessor;
@@ -103,47 +105,165 @@ public class StreamInjectHandler extends AbstractInjectHandler {
         boolean addOutputToVariable = vfsProperties.isStreamingAddOutputToVariable();
         FailedRecordCollector failed = new FailedRecordCollector(file);
 
+        // Checkpointing: resume from the last confirmed record if a matching checkpoint exists.
+        StreamingCheckpointManager checkpoints = openCheckpoints(file, name);
+        long startFromRecord = 0;
+        if (checkpoints != null) {
+            StreamingCheckpoint cp = checkpoints.loadResumable();
+            if (cp != null) {
+                startFromRecord = cp.getRecordsConsumed();
+                failed.seed(cp.getProcessedRecords(), cp.getParseFailedRecords(),
+                    cp.getMediationFailedRecords());
+                log.info("Resuming streaming of " + file.getName().getBaseName()
+                    + " from record " + startFromRecord + " (checkpoint).");
+            }
+        }
+        long resumedFrom = startFromRecord;
+        int interval = vfsProperties.getStreamingCheckpointInterval();
+        long lastConsumed = startFromRecord;
+        boolean cancelled = false;
+
         try (InputStream in = file.getContent().getInputStream()) {
             if (chunkMode) {
-                Iterator<StreamChunk> iterator =
-                    processor.getChunkIterator(in, contentType,
-                        vfsProperties.getStreamingChunkSize());
+                Iterator<StreamChunk> iterator = processor.getChunkIterator(in, contentType,
+                    vfsProperties.getStreamingChunkSize(), startFromRecord);
+                int unitsSinceFlush = 0;
                 while (iterator.hasNext()) {
+                    // Stop cleanly on server shutdown, at a chunk boundary.
+                    if (vfsProperties.isCanceled()) {
+                        cancelled = true;
+                        break;
+                    }
                     try {
                         StreamChunk chunk = iterator.next();
-                        if (!handleChunk(name, contentType, chunk, addOutputToVariable, failed,
-                            processor)) {
-                            return false;
+                        handleChunk(name, contentType, chunk, addOutputToVariable, failed, processor);
+                        lastConsumed = chunk.getLastRecordNumber();
+                        if (checkpoints != null && ++unitsSinceFlush >= interval) {
+                            saveCheckpoint(checkpoints, lastConsumed, failed);
+                            unitsSinceFlush = 0;
                         }
                     } catch (StreamingException ex) {
+                        if (vfsProperties.isCanceled()) {
+                            cancelled = true;
+                            break;
+                        }
                         if (!handleStreamingException(ex, file, failed, "chunk")) {
+                            clearCheckpoints(checkpoints);
                             return false;
                         }
                     }
                 }
             } else {
-                Iterator<StreamRecord> iterator = processor.getRecordIterator(in, contentType);
+                Iterator<StreamRecord> iterator = processor.getRecordIterator(in, contentType,
+                    startFromRecord);
+                int unitsSinceFlush = 0;
                 while (iterator.hasNext()) {
+                    // Stop cleanly on server shutdown, at a record boundary.
+                    if (vfsProperties.isCanceled()) {
+                        cancelled = true;
+                        break;
+                    }
                     try {
                         StreamRecord record = iterator.next();
-                        if (!handleRecord(name, contentType, record, addOutputToVariable, failed)) {
-                            return false;
+                        handleRecord(name, contentType, record, addOutputToVariable, failed);
+                        lastConsumed = record.getRecordNumber();
+                        if (checkpoints != null && ++unitsSinceFlush >= interval) {
+                            saveCheckpoint(checkpoints, lastConsumed, failed);
+                            unitsSinceFlush = 0;
                         }
                     } catch (StreamingException ex) {
+                        if (vfsProperties.isCanceled()) {
+                            cancelled = true;
+                            break;
+                        }
                         if (!handleStreamingException(ex, file, failed, "record")) {
+                            clearCheckpoints(checkpoints);
                             return false;
                         }
                     }
                 }
             }
         } catch (Exception e) {
-            log.error("Error while streaming the file/folder : " + file.getName(), e);
-            failed.discard();
-            return false;
+            if (vfsProperties.isCanceled()) {
+                // Shutdown race: the read failed because the file system manager was closed
+                // mid-stream. Treat it as a graceful stop, not a file failure.
+                cancelled = true;
+            } else {
+                log.error("Error while streaming the file/folder : " + file.getName(), e);
+                failed.discard();
+                clearCheckpoints(checkpoints);
+                return false;
+            }
         } finally {
             failed.close();
         }
+
+        if (cancelled) {
+            return finishOnShutdown(file, checkpoints, lastConsumed, failed);
+        }
+
+        // Success: the file has been fully consumed, so the checkpoint is no longer needed.
+        clearCheckpoints(checkpoints);
+        log.info("Streaming completed for " + file.getName().getBaseName()
+            + ": processed=" + failed.getProcessedCount()
+            + ", parseFailed=" + failed.getParseFailedCount()
+            + ", mediationFailed=" + failed.getMediationFailedCount()
+            + (resumedFrom > 0 ? " (resumed from record " + resumedFrom + ")" : ""));
         return true;
+    }
+
+    /**
+     * Handle a shutdown-interrupted stream: save a checkpoint at the last confirmed record (so the
+     * file resumes on restart) and leave the file in place. The checkpoint is NOT cleared. Returns
+     * true; the caller ({@code VFSConsumer}) sees the cancel flag and skips success/fail
+     * post-processing, leaving the file to be re-polled.
+     */
+    private boolean finishOnShutdown(FileObject file, StreamingCheckpointManager checkpoints,
+                                     long lastConsumed, FailedRecordCollector failed) {
+        String base = file.getName().getBaseName();
+        if (checkpoints != null) {
+            log.info("Streaming of " + base + " interrupted by server shutdown after record "
+                + lastConsumed + " (processed=" + failed.getProcessedCount()
+                + ", parseFailed=" + failed.getParseFailedCount()
+                + ", mediationFailed=" + failed.getMediationFailedCount()
+                + "). Saving a checkpoint so processing resumes from record " + lastConsumed
+                + " on restart; the file is left in place.");
+            saveCheckpoint(checkpoints, lastConsumed, failed);
+        } else {
+            log.info("Streaming of " + base + " interrupted by server shutdown (checkpointing "
+                + "disabled); the file is left in place and will be reprocessed from the start on "
+                + "restart.");
+        }
+        return true;
+    }
+
+    /**
+     * Build a checkpoint manager for this file, or {@code null} if checkpointing is disabled or the
+     * file fingerprint / registry is unavailable (processing then proceeds without resume support).
+     */
+    private StreamingCheckpointManager openCheckpoints(FileObject file, String name) {
+        if (!vfsProperties.isStreamingCheckpointEnabled()) {
+            return null;
+        }
+        try {
+            return new StreamingCheckpointManager(synapseEnvironment, vfsProperties, name, file);
+        } catch (Exception e) {
+            log.warn("Could not initialize checkpointing for " + file.getName().getBaseName()
+                + "; processing without resume support.", e);
+            return null;
+        }
+    }
+
+    private void saveCheckpoint(StreamingCheckpointManager checkpoints, long recordsConsumed,
+                                FailedRecordCollector failed) {
+        checkpoints.save(recordsConsumed, failed.getProcessedCount(), failed.getParseFailedCount(),
+            failed.getMediationFailedCount(), System.currentTimeMillis());
+    }
+
+    private void clearCheckpoints(StreamingCheckpointManager checkpoints) {
+        if (checkpoints != null) {
+            checkpoints.clear();
+        }
     }
 
     /**
@@ -159,8 +279,10 @@ public class StreamInjectHandler extends AbstractInjectHandler {
         }
         byte[] body = addOutputToVariable ? null : record.getContent();
         Map<String, Object> variableOutputMap = addOutputToVariable ? recordVariableMap(record) : null;
-        if (!tryInject(name, contentType, body, variableOutputMap,
+        if (tryInject(name, contentType, body, variableOutputMap,
                 "record " + record.getRecordNumber())) {
+            failed.recordProcessed(1);
+        } else {
             // Mediation failed: apply the mediation-error action to this record's content (raw
             // content, or its payload in variable mode).
             log.warn("Record " + record.getRecordNumber() + " failed mediation; "
@@ -203,8 +325,10 @@ public class StreamInjectHandler extends AbstractInjectHandler {
         byte[] body = addOutputToVariable ? null : processor.buildChunkBody(chunk);
         Map<String, Object> variableOutputMap =
             addOutputToVariable ? chunkVariableMap(chunk, validRecords.size()) : null;
-        if (!tryInject(name, contentType, body, variableOutputMap,
+        if (tryInject(name, contentType, body, variableOutputMap,
                 describe(validRecords) + " (chunk " + chunk.getChunkNumber() + ")")) {
+            failed.recordProcessed(validRecords.size());
+        } else {
             // The chunk failed mediation as a unit; hand the whole chunk (in the shape it was sent)
             // to the mediation-error action.
             log.warn("Chunk " + chunk.getChunkNumber() + " failed mediation; "
@@ -345,6 +469,7 @@ public class StreamInjectHandler extends AbstractInjectHandler {
         private final boolean mediationMove;
         private final FailedRecordWriter parseWriter;
         private final FailedRecordWriter mediationWriter;
+        private long processedCount;
         private long parseFailedCount;
         private long mediationFailedCount;
 
@@ -423,6 +548,30 @@ public class StreamInjectHandler extends AbstractInjectHandler {
         /** "moving" or "dropping", for log messages. */
         String mediationActionLabel() {
             return mediationMove ? "moving" : "dropping";
+        }
+
+        /** Count records that were successfully injected. */
+        void recordProcessed(long count) {
+            processedCount += count;
+        }
+
+        /** Seed the counters from a resumed checkpoint so the totals stay absolute. */
+        void seed(long processed, long parseFailed, long mediationFailed) {
+            this.processedCount = processed;
+            this.parseFailedCount = parseFailed;
+            this.mediationFailedCount = mediationFailed;
+        }
+
+        long getProcessedCount() {
+            return processedCount;
+        }
+
+        long getParseFailedCount() {
+            return parseFailedCount;
+        }
+
+        long getMediationFailedCount() {
+            return mediationFailedCount;
         }
 
         void discard() {

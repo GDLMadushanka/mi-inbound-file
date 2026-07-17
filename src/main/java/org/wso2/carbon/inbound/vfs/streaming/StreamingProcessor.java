@@ -40,11 +40,22 @@ public interface StreamingProcessor {
      *
      * @param input the input stream to read from
      * @param contentType the MIME type
+     * @param chunkSize records per chunk
+     * @param startFromRecord number of leading records to skip (for checkpoint resume); 0 = start
+     *                        from the beginning. The first emitted record is {@code startFromRecord + 1}.
      * @return an Iterator of StreamChunk (batches of records)
      * @throws StreamingException if initialization fails
      */
-    Iterator<StreamChunk> getChunkIterator(InputStream input, String contentType, int chunkSize)
-        throws StreamingException;
+    Iterator<StreamChunk> getChunkIterator(InputStream input, String contentType, int chunkSize,
+        long startFromRecord) throws StreamingException;
+
+    /**
+     * Convenience overload that starts from the beginning (no records skipped).
+     */
+    default Iterator<StreamChunk> getChunkIterator(InputStream input, String contentType, int chunkSize)
+        throws StreamingException {
+        return getChunkIterator(input, contentType, chunkSize, 0L);
+    }
 
     /**
      * Get an iterator of individual records from the input stream.
@@ -62,10 +73,21 @@ public interface StreamingProcessor {
      *
      * @param input the input stream to read from
      * @param contentType the MIME type
+     * @param startFromRecord number of leading records to skip (for checkpoint resume); 0 = start
+     *                        from the beginning. The first emitted record is {@code startFromRecord + 1}.
      * @return an Iterator of StreamRecord (individual records)
      * @throws StreamingException if initialization fails
      */
-    Iterator<StreamRecord> getRecordIterator(InputStream input, String contentType) throws StreamingException;
+    Iterator<StreamRecord> getRecordIterator(InputStream input, String contentType, long startFromRecord)
+        throws StreamingException;
+
+    /**
+     * Convenience overload that starts from the beginning (no records skipped).
+     */
+    default Iterator<StreamRecord> getRecordIterator(InputStream input, String contentType)
+        throws StreamingException {
+        return getRecordIterator(input, contentType, 0L);
+    }
 
     /**
      * Serialize the valid records of a chunk into a single raw message body, in this format's

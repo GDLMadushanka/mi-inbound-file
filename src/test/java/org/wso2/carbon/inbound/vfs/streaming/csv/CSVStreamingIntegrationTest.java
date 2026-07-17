@@ -348,6 +348,24 @@ public class CSVStreamingIntegrationTest {
     }
 
     @Test
+    public void testRecordModeSkipForResume() throws Exception {
+        // Resume: the header is still read, the first 5 data rows are skipped, and the 6th keeps
+        // its absolute record number.
+        File csvFile = getTestFile("sample.csv");
+        CSVStreamingProcessor processor = new CSVStreamingProcessor(
+            8192, ',', '"', true, true, false);
+
+        try (InputStream input = Files.newInputStream(csvFile.toPath())) {
+            Iterator<StreamRecord> iterator = processor.getRecordIterator(input, "text/csv", 5);
+            StreamRecord record = iterator.next();
+            Assert.assertEquals(6, record.getRecordNumber());
+            JsonObject payload = record.getJSONPayload().getAsJsonObject();
+            Assert.assertEquals("6", payload.get("ID").getAsString());
+            Assert.assertEquals("Diana Martinez", payload.get("Name").getAsString());
+        }
+    }
+
+    @Test
     public void testRecordNumberTracking() throws Exception {
         File csvFile = getTestFile("sample.csv");
 

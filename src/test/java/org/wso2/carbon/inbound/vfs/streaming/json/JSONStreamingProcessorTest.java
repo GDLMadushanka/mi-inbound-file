@@ -116,6 +116,17 @@ public class JSONStreamingProcessorTest {
     }
 
     @Test
+    public void testRecordModeSkip() throws StreamingException {
+        // Resume: re-run the selector and skip the first match; the second keeps its record number.
+        JSONStreamingProcessor processor =
+                new JSONStreamingProcessor(8192, "$.store.books[*]", true);
+        Iterator<StreamRecord> it = processor.getRecordIterator(stream(NESTED), "application/json", 1);
+        StreamRecord r = it.next();
+        Assert.assertEquals(2, r.getRecordNumber());
+        Assert.assertEquals("B", r.getJSONPayload().getAsJsonObject().get("title").getAsString());
+    }
+
+    @Test
     public void testSingleNodeNoWildcard() throws StreamingException {
         JSONStreamingProcessor processor =
                 new JSONStreamingProcessor(8192, "$.store", true);

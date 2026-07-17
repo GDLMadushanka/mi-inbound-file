@@ -76,26 +76,26 @@ public class JSONStreamingProcessor extends ChunkedDataProcessor {
     }
 
     @Override
-    public Iterator<StreamChunk> getChunkIterator(InputStream input, String contentType, int chunkSize)
-        throws StreamingException {
+    public Iterator<StreamChunk> getChunkIterator(InputStream input, String contentType, int chunkSize,
+        long startFromRecord) throws StreamingException {
         CompiledPath path = CompiledPath.compile(jsonPath);
         try {
             Charset charset = detectCharset(contentType);
             JsonParser parser = MAPPER.getFactory().createParser(newReader(input, charset));
-            return new JsonChunkIterator(parser, charset, Math.max(1, chunkSize), path);
+            return new JsonChunkIterator(parser, charset, Math.max(1, chunkSize), path, startFromRecord);
         } catch (IOException e) {
             throw new StreamingException("Failed to initialize JSON processor", e, 0, false);
         }
     }
 
     @Override
-    public Iterator<StreamRecord> getRecordIterator(InputStream input, String contentType)
-        throws StreamingException {
+    public Iterator<StreamRecord> getRecordIterator(InputStream input, String contentType,
+        long startFromRecord) throws StreamingException {
         CompiledPath path = CompiledPath.compile(jsonPath);
         try {
             Charset charset = detectCharset(contentType);
             JsonParser parser = MAPPER.getFactory().createParser(newReader(input, charset));
-            return new JsonRowIterator(parser, charset, path);
+            return new JsonRowIterator(parser, charset, path, startFromRecord);
         } catch (IOException e) {
             throw new StreamingException("Failed to initialize JSON processor", e, 0, false);
         }
@@ -226,10 +226,15 @@ public class JSONStreamingProcessor extends ChunkedDataProcessor {
         private long recordCount = 0;
         private JsonNode nextNode;
 
-        JsonRowIterator(JsonParser parser, Charset charset, CompiledPath path) {
+        JsonRowIterator(JsonParser parser, Charset charset, CompiledPath path, long startFromRecord) {
             this.cursor = new MatchCursor(parser, path);
             this.charset = charset;
             advance();
+            // Resume: re-run the selector and discard the leading matches already processed.
+            while (recordCount < startFromRecord && nextNode != null) {
+                recordCount++;
+                advance();
+            }
         }
 
         private void advance() {
@@ -291,11 +296,17 @@ public class JSONStreamingProcessor extends ChunkedDataProcessor {
         private long recordCount = 0;
         private JsonNode nextNode;
 
-        JsonChunkIterator(JsonParser parser, Charset charset, int chunkSize, CompiledPath path) {
+        JsonChunkIterator(JsonParser parser, Charset charset, int chunkSize, CompiledPath path,
+                long startFromRecord) {
             this.cursor = new MatchCursor(parser, path);
             this.charset = charset;
             this.chunkSize = chunkSize;
             advance();
+            // Resume: re-run the selector and discard the leading matches already processed.
+            while (recordCount < startFromRecord && nextNode != null) {
+                recordCount++;
+                advance();
+            }
         }
 
         private void advance() {

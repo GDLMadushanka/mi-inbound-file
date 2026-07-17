@@ -6,19 +6,20 @@
   <component name="ChangeListManager">
     <list default="true" id="9eac94a6-1bbe-4893-9c44-b287ecdfa4f4" name="Changes" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/org/wso2/carbon/inbound/vfs/FileInjectHandler.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/org/wso2/carbon/inbound/vfs/FileInjectHandler.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/org/wso2/carbon/inbound/vfs/StreamingInjectHandler.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/org/wso2/carbon/inbound/vfs/StreamInjectHandler.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/org/wso2/carbon/inbound/vfs/StreamInjectHandler.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/main/java/org/wso2/carbon/inbound/vfs/VFSConfig.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/org/wso2/carbon/inbound/vfs/VFSConfig.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/org/wso2/carbon/inbound/vfs/VFSConstants.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/org/wso2/carbon/inbound/vfs/VFSConstants.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/main/java/org/wso2/carbon/inbound/vfs/VFSConsumer.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/org/wso2/carbon/inbound/vfs/VFSConsumer.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/main/java/org/wso2/carbon/inbound/vfs/streaming/ChunkedDataProcessor.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/org/wso2/carbon/inbound/vfs/streaming/ChunkedDataProcessor.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/org/wso2/carbon/inbound/vfs/streaming/StreamingException.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/org/wso2/carbon/inbound/vfs/streaming/StreamingException.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/org/wso2/carbon/inbound/vfs/streaming/StreamingConstants.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/org/wso2/carbon/inbound/vfs/streaming/StreamingConstants.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/main/java/org/wso2/carbon/inbound/vfs/streaming/StreamingProcessor.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/org/wso2/carbon/inbound/vfs/streaming/StreamingProcessor.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/org/wso2/carbon/inbound/vfs/streaming/StreamingProcessorFactory.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/org/wso2/carbon/inbound/vfs/streaming/StreamingProcessorFactory.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/org/wso2/carbon/inbound/vfs/streaming/csv/CSVStreamingProcessor.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/org/wso2/carbon/inbound/vfs/streaming/csv/CSVStreamingProcessor.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/main/java/org/wso2/carbon/inbound/vfs/streaming/json/JSONStreamingProcessor.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/org/wso2/carbon/inbound/vfs/streaming/json/JSONStreamingProcessor.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/org/wso2/carbon/inbound/vfs/streaming/jsonl/JSONLStreamingProcessor.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/org/wso2/carbon/inbound/vfs/streaming/jsonl/JSONLStreamingProcessor.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/org/wso2/carbon/inbound/vfs/streaming/text/TextStreamingProcessor.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/org/wso2/carbon/inbound/vfs/streaming/text/TextStreamingProcessor.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/main/resources/uischema.json" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/resources/uischema.json" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/test/java/org/wso2/carbon/inbound/vfs/streaming/csv/CSVStreamingIntegrationTest.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/test/java/org/wso2/carbon/inbound/vfs/streaming/csv/CSVStreamingIntegrationTest.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/test/java/org/wso2/carbon/inbound/vfs/streaming/json/JSONStreamingProcessorTest.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/test/java/org/wso2/carbon/inbound/vfs/streaming/json/JSONStreamingProcessorTest.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/test/java/org/wso2/carbon/inbound/vfs/streaming/jsonl/JSONLStreamingProcessorTest.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/test/java/org/wso2/carbon/inbound/vfs/streaming/jsonl/JSONLStreamingProcessorTest.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/test/java/org/wso2/carbon/inbound/vfs/streaming/text/TextStreamingProcessorTest.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/test/java/org/wso2/carbon/inbound/vfs/streaming/text/TextStreamingProcessorTest.java" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -198,7 +199,7 @@
       <breakpoints>
         <line-breakpoint enabled="true" type="java-line">
           <url>file://$PROJECT_DIR$/src/main/java/org/wso2/carbon/inbound/vfs/FileInjectHandler.java</url>
-          <line>163</line>
+          <line>166</line>
           <option name="timeStamp" value="2" />
         </line-breakpoint>
         <line-breakpoint enabled="true" type="java-line">
@@ -213,28 +214,73 @@
         </line-breakpoint>
         <line-breakpoint enabled="true" type="java-line">
           <url>file://$PROJECT_DIR$/src/main/java/org/wso2/carbon/inbound/vfs/FileInjectHandler.java</url>
-          <line>232</line>
+          <line>235</line>
           <option name="timeStamp" value="40" />
         </line-breakpoint>
         <line-breakpoint enabled="true" type="java-line">
           <url>file://$PROJECT_DIR$/src/main/java/org/wso2/carbon/inbound/vfs/streaming/json/JSONStreamingProcessor.java</url>
-          <line>242</line>
+          <line>247</line>
           <option name="timeStamp" value="42" />
         </line-breakpoint>
         <line-breakpoint enabled="true" type="java-line">
-          <url>file://$PROJECT_DIR$/src/main/java/org/wso2/carbon/inbound/vfs/streaming/csv/CSVStreamingProcessor.java</url>
-          <line>415</line>
-          <option name="timeStamp" value="44" />
+          <url>file://$PROJECT_DIR$/src/main/java/org/wso2/carbon/inbound/vfs/StreamInjectHandler.java</url>
+          <line>339</line>
+          <option name="timeStamp" value="53" />
         </line-breakpoint>
         <line-breakpoint enabled="true" type="java-line">
-          <url>file://$PROJECT_DIR$/src/main/java/org/wso2/carbon/inbound/vfs/streaming/json/JSONStreamingProcessor.java</url>
-          <line>391</line>
-          <option name="timeStamp" value="49" />
+          <url>file://$PROJECT_DIR$/src/main/java/org/wso2/carbon/inbound/vfs/StreamInjectHandler.java</url>
+          <line>523</line>
+          <option name="timeStamp" value="54" />
         </line-breakpoint>
         <line-breakpoint enabled="true" type="java-line">
-          <url>file://$PROJECT_DIR$/src/main/java/org/wso2/carbon/inbound/vfs/streaming/json/JSONStreamingProcessor.java</url>
-          <line>402</line>
-          <option name="timeStamp" value="50" />
+          <url>file://$PROJECT_DIR$/src/main/java/org/wso2/carbon/inbound/vfs/StreamInjectHandler.java</url>
+          <line>541</line>
+          <option name="timeStamp" value="56" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" type="java-line">
+          <url>file://$PROJECT_DIR$/src/main/java/org/wso2/carbon/inbound/vfs/StreamInjectHandler.java</url>
+          <line>333</line>
+          <option name="timeStamp" value="60" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" type="java-line">
+          <url>file://$PROJECT_DIR$/src/main/java/org/wso2/carbon/inbound/vfs/VFSConsumer.java</url>
+          <line>655</line>
+          <option name="timeStamp" value="61" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" type="java-line">
+          <url>file://$PROJECT_DIR$/src/main/java/org/wso2/carbon/inbound/vfs/VFSConsumer.java</url>
+          <line>735</line>
+          <option name="timeStamp" value="62" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" type="java-line">
+          <url>file://$PROJECT_DIR$/src/main/java/org/wso2/carbon/inbound/vfs/FileInjectHandler.java</url>
+          <line>118</line>
+          <option name="timeStamp" value="66" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" type="java-line">
+          <url>file://$PROJECT_DIR$/src/main/java/org/wso2/carbon/inbound/vfs/streaming/StreamingCheckpointManager.java</url>
+          <line>80</line>
+          <option name="timeStamp" value="69" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" type="java-line">
+          <url>file://$PROJECT_DIR$/src/main/java/org/wso2/carbon/inbound/vfs/StreamInjectHandler.java</url>
+          <line>111</line>
+          <option name="timeStamp" value="70" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" type="java-line">
+          <url>file://$PROJECT_DIR$/src/main/java/org/wso2/carbon/inbound/vfs/streaming/StreamingCheckpoint.java</url>
+          <line>107</line>
+          <option name="timeStamp" value="72" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" type="java-line">
+          <url>file://$PROJECT_DIR$/src/main/java/org/wso2/carbon/inbound/vfs/streaming/StreamingCheckpoint.java</url>
+          <line>123</line>
+          <option name="timeStamp" value="73" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" type="java-line">
+          <url>file://$PROJECT_DIR$/src/main/java/org/wso2/carbon/inbound/vfs/streaming/StreamingCheckpointManager.java</url>
+          <line>142</line>
+          <option name="timeStamp" value="74" />
         </line-breakpoint>
       </breakpoints>
     </breakpoint-manager>

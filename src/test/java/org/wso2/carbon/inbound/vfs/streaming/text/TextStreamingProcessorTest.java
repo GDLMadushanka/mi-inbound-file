@@ -121,6 +121,16 @@ public class TextStreamingProcessorTest {
     }
 
     @Test
+    public void testRecordModeSkip() throws StreamingException {
+        // Resume: skip the first record; the next one keeps its absolute record number.
+        TextStreamingProcessor processor = new TextStreamingProcessor(8192, false);
+        Iterator<StreamRecord> it = processor.getRecordIterator(stream(LOG), "text/plain", 1);
+        StreamRecord r = it.next();
+        Assert.assertEquals(2, r.getRecordNumber());
+        Assert.assertEquals("2026-07-06 WARN disk low", r.getAsString());
+    }
+
+    @Test
     public void testEmptyInput() throws StreamingException {
         TextStreamingProcessor processor = new TextStreamingProcessor(8192, false);
         Iterator<StreamRecord> it = processor.getRecordIterator(stream(""), "text/plain");

@@ -751,6 +751,88 @@
                 }
               ]
             }
+          },
+          {
+            "type": "attributeGroup",
+            "value": {
+              "groupName": "Streaming Checkpoint",
+              "isCollapsed": false,
+              "enableCondition": [
+                "AND",
+                {
+                  "transport.vfs.Streaming": true
+                },
+                [
+                  "OR",
+                  {
+                    "transport.vfs.StreamingMode": "CHUNK"
+                  },
+                  {
+                    "transport.vfs.StreamingMode": "RECORD"
+                  }
+                ]
+              ],
+              "elements": [
+                {
+                  "type": "attribute",
+                  "value": {
+                    "name": "transport.vfs.StreamingCheckpointEnabled",
+                    "displayName": "Enable Checkpoint",
+                    "inputType": "checkbox",
+                    "defaultValue": true,
+                    "required": "false",
+                    "helpTip": "Persist progress to the registry so a restart resumes mid-file instead of reprocessing from the start.",
+                    "enableCondition": [
+                      "AND",
+                      {
+                        "transport.vfs.Streaming": true
+                      },
+                      [
+                        "OR",
+                        {
+                          "transport.vfs.StreamingMode": "CHUNK"
+                        },
+                        {
+                          "transport.vfs.StreamingMode": "RECORD"
+                        }
+                      ]
+                    ]
+                  }
+                },
+                {
+                  "type": "attribute",
+                  "value": {
+                    "name": "transport.vfs.StreamingCheckpointInterval",
+                    "displayName": "Checkpoint Interval",
+                    "inputType": "string",
+                    "defaultValue": "1000",
+                    "required": "false",
+                    "helpTip": "Flush the checkpoint every N confirmed units - records in RECORD mode, chunks in CHUNK mode.",
+                    "enableCondition": [
+                      "AND",
+                      {
+                        "transport.vfs.Streaming": true
+                      },
+                      [
+                        "AND",
+                        {
+                          "transport.vfs.StreamingCheckpointEnabled": true
+                        },
+                        [
+                          "OR",
+                          {
+                            "transport.vfs.StreamingMode": "CHUNK"
+                          },
+                          {
+                            "transport.vfs.StreamingMode": "RECORD"
+                          }
+                        ]
+                      ]
+                    ]
+                  }
+                }
+              ]
+            }
           }
         ]
       }

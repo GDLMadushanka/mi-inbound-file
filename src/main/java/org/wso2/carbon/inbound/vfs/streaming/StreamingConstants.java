@@ -133,4 +133,31 @@ public class StreamingConstants {
     // all are empty, mediation errors are logged only.
     public static final String STREAMING_MEDIATION_ERROR_FOLDER
             = "transport.vfs.StreamingMediationErrorFolder";
+
+    // ----- Checkpointing (resumable streaming) -----
+    //
+    // A checkpoint is a small JSON resource written to the registry that records how far a file has
+    // been processed, so a restart after a kill/shutdown resumes near where it stopped instead of
+    // reprocessing a multi-GB file from the beginning. On resume the processor skips the already
+    // consumed records; the file is identified by a cheap fingerprint (size + last-modified +
+    // CRC32 of the leading bytes) plus a config hash.
+
+    // Whether checkpointing is enabled. On by default.
+    public static final String STREAMING_CHECKPOINT_ENABLED = "transport.vfs.StreamingCheckpointEnabled";
+    public static final boolean DEFAULT_STREAMING_CHECKPOINT_ENABLED = true;
+
+    // Flush the checkpoint every N confirmed units - records in RECORD mode, chunks in CHUNK mode.
+    public static final String STREAMING_CHECKPOINT_INTERVAL = "transport.vfs.StreamingCheckpointInterval";
+    public static final int DEFAULT_STREAMING_CHECKPOINT_INTERVAL = 1000;
+
+    // Registry (governance) root under which per-inbound checkpoint files are stored:
+    //   gov:/fileStreamingCheckpoints/{inboundName}/<fileKey>.json
+    public static final String CHECKPOINT_REGISTRY_ROOT = "gov:/fileStreamingCheckpoints";
+
+    // Number of leading file bytes hashed into the fingerprint (fixed, not user-configurable).
+    public static final int CHECKPOINT_FINGERPRINT_BYTES = 65536;
+
+    // Checkpoint schema version and fingerprint hash algorithm.
+    public static final int CHECKPOINT_SCHEMA_VERSION = 1;
+    public static final String CHECKPOINT_HASH_ALGORITHM = "CRC32";
 }

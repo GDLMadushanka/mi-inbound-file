@@ -127,6 +127,8 @@ public class VFSConfig {
     private String streamingParseErrorFolder;
     private String streamingMediationErrorAction;
     private String streamingMediationErrorFolder;
+    private boolean streamingCheckpointEnabled;
+    private int streamingCheckpointInterval;
     private boolean build;
     private int maxRetryCount;
     private long reconnectTimeout;
@@ -218,6 +220,12 @@ public class VFSConfig {
                 StreamingConstants.DEFAULT_STREAMING_ERROR_ACTION);
         this.streamingMediationErrorFolder =
                 properties.getProperty(StreamingConstants.STREAMING_MEDIATION_ERROR_FOLDER);
+        this.streamingCheckpointEnabled = Boolean.parseBoolean(
+                properties.getProperty(StreamingConstants.STREAMING_CHECKPOINT_ENABLED,
+                        String.valueOf(StreamingConstants.DEFAULT_STREAMING_CHECKPOINT_ENABLED)));
+        this.streamingCheckpointInterval = Integer.parseInt(
+                properties.getProperty(StreamingConstants.STREAMING_CHECKPOINT_INTERVAL,
+                        String.valueOf(StreamingConstants.DEFAULT_STREAMING_CHECKPOINT_INTERVAL)));
         this.streamingCharset = properties.getProperty(
                 StreamingConstants.STREAMING_CHARSET, StreamingConstants.DEFAULT_STREAMING_CHARSET);
         // In streaming CHUNK/RECORD modes the content type is fixed by the input format. The charset
@@ -627,6 +635,21 @@ public class VFSConfig {
     }
 
     /**
+     * True when a checkpoint should be written so a restart resumes mid-file. On by default.
+     */
+    public boolean isStreamingCheckpointEnabled() {
+        return streamingCheckpointEnabled;
+    }
+
+    /**
+     * Flush the checkpoint every this many confirmed units (records in RECORD mode, chunks in
+     * CHUNK mode).
+     */
+    public int getStreamingCheckpointInterval() {
+        return streamingCheckpointInterval;
+    }
+
+    /**
      * Returns the first character of the given value, or the fallback when the value is
      * null or empty. Used to parse single-character CSV parameters (delimiter, quote).
      */
@@ -783,6 +806,14 @@ public class VFSConfig {
 
     public boolean isCanceled() {
         return canceled;
+    }
+
+    /**
+     * Signal that processing should stop (e.g. on server shutdown). The streaming loop checks this
+     * between records/chunks and stops cleanly, saving a checkpoint so the file resumes on restart.
+     */
+    public void setCanceled(boolean canceled) {
+        this.canceled = canceled;
     }
 
     public boolean isResolveHostsDynamically() {

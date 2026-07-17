@@ -57,26 +57,26 @@ public class TextStreamingProcessor extends ChunkedDataProcessor {
     }
 
     @Override
-    public Iterator<StreamChunk> getChunkIterator(InputStream input, String contentType, int chunkSize)
-        throws StreamingException {
+    public Iterator<StreamChunk> getChunkIterator(InputStream input, String contentType, int chunkSize,
+        long startFromRecord) throws StreamingException {
         try {
             Charset charset = detectCharset(contentType);
             BufferedReader reader = new BufferedReader(
                 new InputStreamReader(input, charset), bufferSize);
-            return new TextChunkIterator(reader, charset, Math.max(1, chunkSize));
+            return new TextChunkIterator(reader, charset, Math.max(1, chunkSize), startFromRecord);
         } catch (Exception e) {
             throw new StreamingException("Failed to initialize text processor", e, 0, false);
         }
     }
 
     @Override
-    public Iterator<StreamRecord> getRecordIterator(InputStream input, String contentType)
-        throws StreamingException {
+    public Iterator<StreamRecord> getRecordIterator(InputStream input, String contentType,
+        long startFromRecord) throws StreamingException {
         try {
             Charset charset = detectCharset(contentType);
             BufferedReader reader = new BufferedReader(
                 new InputStreamReader(input, charset), bufferSize);
-            return new TextRowIterator(reader, charset);
+            return new TextRowIterator(reader, charset, startFromRecord);
         } catch (Exception e) {
             throw new StreamingException("Failed to initialize text processor", e, 0, false);
         }
@@ -93,10 +93,15 @@ public class TextStreamingProcessor extends ChunkedDataProcessor {
         private String nextLine;
         private boolean eof = false;
 
-        TextRowIterator(BufferedReader reader, Charset charset) {
+        TextRowIterator(BufferedReader reader, Charset charset, long startFromRecord) {
             this.reader = reader;
             this.charset = charset;
             advance();
+            // Resume: discard the leading records already processed before the checkpoint.
+            while (recordCount < startFromRecord && hasNext()) {
+                recordCount++;
+                advance();
+            }
         }
 
         private void advance() {
@@ -157,11 +162,17 @@ public class TextStreamingProcessor extends ChunkedDataProcessor {
         private String nextLine;
         private boolean eof = false;
 
-        TextChunkIterator(BufferedReader reader, Charset charset, int chunkSize) {
+        TextChunkIterator(BufferedReader reader, Charset charset, int chunkSize, long startFromRecord) {
             this.reader = reader;
             this.charset = charset;
             this.chunkSize = chunkSize;
             advance();
+            // Resume: discard the leading records already processed before the checkpoint, then
+            // form chunks from the next record onward.
+            while (recordCount < startFromRecord && hasNext()) {
+                recordCount++;
+                advance();
+            }
         }
 
         private void advance() {

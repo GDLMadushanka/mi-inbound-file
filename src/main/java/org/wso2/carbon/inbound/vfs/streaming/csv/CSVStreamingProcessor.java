@@ -62,7 +62,7 @@ public class CSVStreamingProcessor extends ChunkedDataProcessor {
 
     @Override
     public Iterator<StreamChunk> getChunkIterator(InputStream input, String contentType,
-        int chunkSize)
+        int chunkSize, long startFromRecord)
         throws StreamingException {
         this.chunkSize = Math.max(1, chunkSize);
         try {
@@ -72,7 +72,7 @@ public class CSVStreamingProcessor extends ChunkedDataProcessor {
                 bufferSize
             );
 
-            return new ChunkIterator(reader, charset);
+            return new ChunkIterator(reader, charset, startFromRecord);
 
         } catch (Exception e) {
             throw new StreamingException("Failed to initialize CSV processor", e, 0, false);
@@ -80,7 +80,8 @@ public class CSVStreamingProcessor extends ChunkedDataProcessor {
     }
 
     @Override
-    public Iterator<StreamRecord> getRecordIterator(InputStream input, String contentType)
+    public Iterator<StreamRecord> getRecordIterator(InputStream input, String contentType,
+        long startFromRecord)
         throws StreamingException {
         try {
             Charset charset = detectCharset(contentType);
@@ -89,7 +90,7 @@ public class CSVStreamingProcessor extends ChunkedDataProcessor {
                 bufferSize
             );
 
-            return new RowIterator(reader, charset);
+            return new RowIterator(reader, charset, startFromRecord);
 
         } catch (Exception e) {
             throw new StreamingException("Failed to initialize CSV processor", e, 0, false);
@@ -166,7 +167,8 @@ public class CSVStreamingProcessor extends ChunkedDataProcessor {
         private CSVRecord nextRecord;
         private final Charset charset;
 
-        ChunkIterator(BufferedReader reader, Charset charset) throws StreamingException {
+        ChunkIterator(BufferedReader reader, Charset charset, long startFromRecord)
+            throws StreamingException {
             this.charset = charset;
             try {
                 CSVFormat csvFormat = buildCSVFormat();
@@ -183,6 +185,12 @@ public class CSVStreamingProcessor extends ChunkedDataProcessor {
 
                 // Try to read first record
                 advanceToNextRecord();
+                // Resume: the header (row 0) is already parsed above; discard the leading data rows
+                // already processed before the checkpoint.
+                while (recordCount < startFromRecord && hasNext()) {
+                    recordCount++;
+                    advanceToNextRecord();
+                }
 
             } catch (IOException e) {
                 throw new StreamingException("Failed to parse CSV headers", e, 0, false);
@@ -320,7 +328,8 @@ public class CSVStreamingProcessor extends ChunkedDataProcessor {
         private boolean eof = false;
         private CSVRecord nextRecord;
 
-        RowIterator(BufferedReader reader, Charset charset) throws StreamingException {
+        RowIterator(BufferedReader reader, Charset charset, long startFromRecord)
+            throws StreamingException {
             this.charset = charset;
 
             try {
@@ -337,6 +346,12 @@ public class CSVStreamingProcessor extends ChunkedDataProcessor {
                 }
 
                 advanceToNextRecord();
+                // Resume: the header (row 0) is already parsed above; discard the leading data rows
+                // already processed before the checkpoint.
+                while (recordCount < startFromRecord && hasNext()) {
+                    recordCount++;
+                    advanceToNextRecord();
+                }
 
             } catch (IOException e) {
                 throw new StreamingException("Failed to parse CSV headers", e, 0, false);

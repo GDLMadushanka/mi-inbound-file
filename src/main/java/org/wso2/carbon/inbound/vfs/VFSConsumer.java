@@ -25,6 +25,7 @@ import org.apache.synapse.core.SynapseEnvironment;
 import org.wso2.carbon.inbound.endpoint.protocol.generic.GenericPollingConsumer;
 import org.wso2.carbon.inbound.vfs.filter.FileSelector;
 import org.wso2.carbon.inbound.vfs.lock.LockManager;
+import org.wso2.carbon.inbound.vfs.streaming.StreamingConstants;
 import org.wso2.carbon.inbound.vfs.processor.MoveAction;
 import org.wso2.carbon.inbound.vfs.processor.PostProcessingHandler;
 import org.wso2.carbon.inbound.vfs.processor.PreProcessingHandler;
@@ -65,7 +66,16 @@ public class VFSConsumer extends GenericPollingConsumer {
     private boolean fileLock = true;
     private FileSystemOptions fso;
     private boolean readSubDirectories = false;
-    private boolean isClosed;
+    // Read from the poll thread and written from the shutdown thread, so it must be volatile.
+    private volatile boolean isClosed;
+    // True only while a STREAMING file is being processed. close() waits for this to clear before
+    // closing the file system manager, so the in-flight stream can finish - releasing its lock and
+    // saving its checkpoint - instead of having the file system torn out from under it. The
+    // non-streaming path never sets this, so its shutdown behaviour is unchanged.
+    private volatile boolean processing;
+    // Maximum time close() waits for the in-flight poll to finish before forcing the shutdown.
+    private static final long SHUTDOWN_WAIT_MILLIS = 30000L;
+    private static final long SHUTDOWN_POLL_MILLIS = 100L;
     private String replyFileURI;
     private String replyFileName;
     private boolean append = false;
@@ -385,6 +395,17 @@ public class VFSConsumer extends GenericPollingConsumer {
             return;
         }
 
+        // Only streaming (CHUNK/RECORD) resumes from a checkpoint on restart, so only there do we
+        // leave a shutdown-interrupted file in place instead of post-processing it. Entire-file /
+        // non-streaming processing keeps its normal shutdown behaviour.
+        boolean streamingResumable = isStreamingResumable();
+        // Streaming only: mark this poll busy so close() waits for it to stop (releasing the lock
+        // and saving the checkpoint) before closing the file system manager. No effect on the
+        // non-streaming path.
+        if (streamingResumable) {
+            processing = true;
+        }
+
         try {
             // Pre-processing hook (e.g., acquire lock, tmp rename, etc.)
             preProcessingHandler.handle(file);
@@ -422,7 +443,13 @@ public class VFSConsumer extends GenericPollingConsumer {
                 fileInjectHandler.setFileURI(fileURI);
 
                 boolean ok = fileInjectHandler.invoke(file, name);
-                if (ok) {
+                if (streamingResumable && (isClosed || vfsConfig.isCanceled())) {
+                    // Server is shutting down. A streamed file stops at a record/chunk boundary and
+                    // saves a checkpoint; leave the file where it is (no success/fail post-processing)
+                    // so it is re-polled and resumed from that checkpoint on restart.
+                    log.info("Server shutdown during streaming; leaving file in place to resume on "
+                            + "restart: " + maskURLPassword(file.toString()));
+                } else if (ok) {
                     if (log.isDebugEnabled()) {
                         log.debug("File processed successfully: " + maskURLPassword(file.toString()));
                     }
@@ -436,6 +463,13 @@ public class VFSConsumer extends GenericPollingConsumer {
                 }
             }
         } catch (Exception e) {
+            if (streamingResumable && (isClosed || vfsConfig.isCanceled())) {
+                // Shutdown race (e.g. the file system manager closed mid-read). Not a real failure -
+                // leave the streamed file in place to resume on restart rather than marking it failed.
+                log.info("Server shutdown interrupted streaming; leaving file in place to resume on "
+                        + "restart: " + maskURLPassword(file.toString()));
+                return;
+            }
             log.error("Error processing file: " + maskURLPassword(file.toString()), e);
             try {
                 if (vfsConfig.getMoveAfterMoveFailure() != null) {
@@ -458,6 +492,8 @@ public class VFSConsumer extends GenericPollingConsumer {
                     log.debug("Released the lock for file: " + maskURLPassword(file.toString()));
                 }
             }
+            // The lock is now released; let a waiting shutdown proceed to close the manager.
+            processing = false;
         }
     }
 
@@ -618,6 +654,15 @@ public class VFSConsumer extends GenericPollingConsumer {
 
     public void close() {
         isClosed = true;
+        // Streaming only: signal the in-flight stream to stop cleanly and wait (bounded) for it to
+        // finish so it can release its lock file and save its checkpoint while the file system
+        // manager is still open. Without this, closing fsManager here would leave the .lock file
+        // behind and block re-reading the file after a restart. The non-streaming path skips this
+        // entirely and closes exactly as before.
+        if (isStreamingResumable()) {
+            vfsConfig.setCanceled(true);
+            awaitProcessingStop(SHUTDOWN_WAIT_MILLIS);
+        }
         fsManager.close();
         if (retryScheduler != null && !retryScheduler.isShutdown()) {
             retryScheduler.shutdown();
@@ -632,8 +677,42 @@ public class VFSConsumer extends GenericPollingConsumer {
         }
     }
 
+    /**
+     * True when this inbound streams in CHUNK/RECORD mode - the only case that checkpoints, resumes,
+     * and therefore needs the graceful shutdown handling. Entire-file / non-streaming returns false.
+     */
+    private boolean isStreamingResumable() {
+        return vfsConfig.isStreaming()
+                && !StreamingConstants.STREAMING_MODE_ENTIRE_FILE
+                        .equalsIgnoreCase(vfsConfig.getStreamingMode());
+    }
+
+    /**
+     * Wait, up to {@code maxWaitMillis}, for the in-flight poll to finish so it can release its
+     * lock and save its checkpoint before the file system manager is closed.
+     */
+    private void awaitProcessingStop(long maxWaitMillis) {
+        long deadline = System.currentTimeMillis() + maxWaitMillis;
+        while (processing && System.currentTimeMillis() < deadline) {
+            try {
+                Thread.sleep(SHUTDOWN_POLL_MILLIS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                break;
+            }
+        }
+        if (processing) {
+            log.warn("In-flight file processing did not stop within " + maxWaitMillis
+                    + "ms of shutdown; closing the file system manager anyway. The file's .lock may "
+                    + "remain in place. It is reclaimed automatically only when AutoLockRelease "
+                    + "(transport.vfs.AutoLockRelease) is enabled; otherwise remove the .lock file "
+                    + "manually before the file can be picked up again.");
+        }
+    }
+
     public void start() {
         isClosed = false;
+        vfsConfig.setCanceled(false);
     }
 
     public void destroy() {
@@ -646,6 +725,7 @@ public class VFSConsumer extends GenericPollingConsumer {
             ((StandardFileSystemManager) fsManager).init();
             retryScheduler = Executors.newScheduledThreadPool(1);
             isClosed = false;
+            vfsConfig.setCanceled(false);
         } catch (FileSystemException e) {
             log.error("Error re-initializing VFS FileSystemManager on resume", e);
         }

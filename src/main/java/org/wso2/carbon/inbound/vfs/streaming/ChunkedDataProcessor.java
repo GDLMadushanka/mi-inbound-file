@@ -100,7 +100,7 @@ public abstract class ChunkedDataProcessor implements StreamingProcessor {
 
     @Override
     public abstract Iterator<StreamChunk> getChunkIterator(InputStream input, String contentType,
-        int chunkSize) throws StreamingException;
+        int chunkSize, long startFromRecord) throws StreamingException;
 
     /**
      * Default line-oriented chunk body: joins each valid record's raw content with the platform

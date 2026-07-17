@@ -157,6 +157,17 @@ public class JSONLStreamingProcessorTest {
     }
 
     @Test
+    public void testRecordModeSkip() throws StreamingException {
+        // Resume: skip the first two records; the third keeps its absolute record number.
+        JSONLStreamingProcessor processor = new JSONLStreamingProcessor(8192, false);
+        Iterator<StreamRecord> it = processor.getRecordIterator(stream(VALID), "application/json", 2);
+        StreamRecord r = it.next();
+        Assert.assertEquals(3, r.getRecordNumber());
+        Assert.assertEquals("{\"id\":3,\"name\":\"Bob\"}", r.getAsString());
+        Assert.assertFalse(it.hasNext());
+    }
+
+    @Test
     public void testEmptyInput() throws StreamingException {
         JSONLStreamingProcessor processor = new JSONLStreamingProcessor(8192, false);
         Iterator<StreamRecord> it = processor.getRecordIterator(stream(""), "application/json");
