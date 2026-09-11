@@ -18,6 +18,12 @@
 
 package org.wso2.carbon.inbound.vfs;
 
+import org.apache.synapse.core.axis2.Axis2MessageContext;
+import org.apache.synapse.stream.JobContext;
+import org.apache.synapse.stream.StreamException;
+import org.apache.synapse.stream.StreamOrigin;
+import org.apache.synapse.stream.StreamSeed;
+import org.apache.synapse.stream.pipeline.StreamPipeline;
 import org.apache.commons.lang.StringUtils;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -111,6 +117,7 @@ public class VFSConsumer extends GenericPollingConsumer {
         this.fileInjectHandler = new FileInjectHandler(injectingSeq, onErrorSeq, sequential, synapseEnvironment,
                 vfsConfig);
         this.preProcessingHandler = new PreProcessingHandler();
+        requireStreamPipelineIsUsable(injectingSeq);
         this.postProcessingHandler = new PostProcessingHandler();
         int actionAfterProcess = vfsConfig.getActionAfterProcess();
         this.postProcessingHandler.setOnSuccessAction(Utils.getActionAfterProcess(vfsConfig, actionAfterProcess, vfsConfig.getMoveAfterProcess(), fsManager));
@@ -175,6 +182,7 @@ public class VFSConsumer extends GenericPollingConsumer {
         this.fileInjectHandler = new FileInjectHandler(injectingSeq, onErrorSeq, sequential, synapseEnvironment,
                 vfsConfig);
         this.preProcessingHandler = new PreProcessingHandler();
+        requireStreamPipelineIsUsable(injectingSeq);
         this.postProcessingHandler = new PostProcessingHandler();
         int actionAfterProcess = vfsConfig.getActionAfterProcess();
         this.postProcessingHandler.setOnSuccessAction(Utils.getActionAfterProcess(vfsConfig, actionAfterProcess,
@@ -421,7 +429,15 @@ public class VFSConsumer extends GenericPollingConsumer {
                 fileInjectHandler.setTransportHeaders(headers);
                 fileInjectHandler.setFileURI(fileURI);
 
-                boolean ok = fileInjectHandler.invoke(file, name);
+                // For a pipeline, disposal on failure has already happened inside runStreamPipeline
+                // -- a retryable failure leaves the file exactly where it is so the next poll resumes
+                // it, anything else applies the configured action. So only success reaches the
+                // post-processing below, and 'false' means "already dealt with".
+                boolean pipeline = vfsConfig.getStreamPipeline() != null;
+                boolean ok = pipeline ? runStreamPipeline(file) : fileInjectHandler.invoke(file, name);
+                if (pipeline && !ok) {
+                    return;
+                }
                 if (ok) {
                     if (log.isDebugEnabled()) {
                         log.debug("File processed successfully: " + maskURLPassword(file.toString()));
@@ -537,6 +553,170 @@ public class VFSConsumer extends GenericPollingConsumer {
         }
 
         return uri;
+    }
+
+    /**
+     * Runs the configured {@code <streamPipeline>} over one file, seeded from the file itself.
+     *
+     * <h2>Why the endpoint builds the seed</h2>
+     * Identity belongs to whoever holds the source, because only it knows what distinguishes one
+     * source from another. Here that is the URI plus the size and modification time: a file replaced
+     * at the same path is a <b>different</b> source and must not resume into the first one's
+     * artifacts. The framework never looks inside the value — it hashes it to name the run, and
+     * compares it for equality to notice a change.
+     *
+     * <p>That naming is what makes a resumed transfer possible at all. Re-detecting the same unchanged
+     * file yields the same identity, so the same run id, so the run finds its own checkpoints and
+     * continues instead of starting over. Post-processing runs only on success, so a failed transfer
+     * leaves the file for the next poll to retry — this endpoint is the retry driver, and that needs
+     * no new machinery.
+     *
+     * <h2>A message is created, but nothing is injected into it</h2>
+     * The file's bytes never become a payload — that is the point, and it is why the builder, the
+     * envelope and the content type are all bypassed, along with the reason the alternative
+     * (recovering a stream from an already-built message) needed two non-default settings and was
+     * unsafe under {@code sequential="false"}.
+     *
+     * <p>An <b>empty</b> message context is still required, though, and passing {@code null} does not
+     * work. A connector operation reaches the pipeline through its ordinary template, so its
+     * parameters are read from the invoking message's function stack — the pipeline pushes a
+     * {@code TemplateContext} onto it around each build call. With no message there is no stack, and
+     * the operation refuses with <i>"needs the invoking message to read its parameters from"</i>.
+     * So the message exists to carry configuration, not content.
+     *
+     * <h2>The stream stays ours</h2>
+     * {@code StreamSeed}'s contract leaves ownership with the provider; the pipeline shields the
+     * stream rather than closing it. So the file is closed here, in a finally, once the transfer has
+     * ended. Running synchronously is the point: the transfer is over before post-processing decides
+     * what to do with the file.
+     *
+     * @param file the detected file
+     * @return {@code true} if the transfer completed
+     */
+    /**
+     * Refuses the configurations in which a stream pipeline could not do what it promises.
+     *
+     * <p>Called once, at construction, so a deployer learns at deploy time rather than from a transfer
+     * that silently did the wrong thing.
+     *
+     * <h2>A sequence and a pipeline are alternatives</h2>
+     * They consume the file in incompatible ways — one mediates a message per file, the other reads
+     * bytes — so silently preferring either would leave half the configuration inert.
+     *
+     * <p>What happens to a file whose transfer failed is deliberately <b>not</b> policed here.
+     * {@code ActionAfterFailure} is the deployer's to choose, and it has to be: once bytes are moving,
+     * nothing can tell a bad file from a declaration written for a different one. MOVE is the answer
+     * for anyone unsure — the file survives for inspection and leaves the polled directory.
+     */
+    private void requireStreamPipelineIsUsable(String injectingSeq) {
+        String key = vfsConfig.getStreamPipeline();
+        if (key == null) {
+            return;
+        }
+        if (injectingSeq != null && !injectingSeq.trim().isEmpty()) {
+            throw new IllegalArgumentException("Inbound endpoint '" + name + "' sets both 'sequence'"
+                    + " and '" + VFSConstants.STREAM_PIPELINE + "'. They consume the file in"
+                    + " incompatible ways -- a sequence mediates one message per file, a pipeline"
+                    + " reads its bytes -- so one of them would be inert. Remove one");
+        }
+        if (vfsConfig.isFileLocking() && !vfsConfig.isAutoLockRelease()) {
+            log.warn("Inbound endpoint '" + name + "' runs streamPipeline '" + key + "' with file"
+                    + " locking on and '" + VFSConstants.TRANSPORT_AUTO_LOCK_RELEASE + "' off. A"
+                    + " server killed mid-transfer leaves a stale lock, and the file is then skipped"
+                    + " on every later poll -- so the transfer never resumes. Enable auto lock"
+                    + " release, or clear the lock file by hand after a crash");
+        }
+    }
+
+    /**
+     * Decides what a failed transfer leaves behind, from the one thing the pipeline can honestly say.
+     *
+     * <h2>Retryable means leave it alone</h2>
+     * A backend that was down, a database that was unreachable — reading the same file again is
+     * expected to work, and because the identity is unchanged the next poll resumes from the
+     * checkpoint rather than starting over. So the file is not touched at all: no move, no delete, no
+     * failed-record mark. Doing nothing is the action.
+     *
+     * <h2>Anything else is the deployer's to dispose of</h2>
+     * Not retryable means reading it again fails the same way — a poison record, an exhausted error
+     * budget. What should happen to such a file is genuinely not ours to decide: once bytes are
+     * moving, "this column will not parse as an integer" is indistinguishable from a declaration
+     * written for a different file, and we would be wrong half the time either way. So the configured
+     * {@code ActionAfterFailure} applies, and the deployer picks: DELETE if they trust their
+     * configuration, MOVE to keep the evidence, NONE to fix it in place.
+     *
+     * @return always {@code false} — the transfer did not complete; the return distinguishes nothing,
+     *         because the disposal has already happened here
+     */
+    private boolean afterFailure(FileObject file, String key, StreamException failure) {
+        if (failure.isRetryable()) {
+            log.error("Inbound endpoint '" + name + "' failed running streamPipeline '" + key
+                    + "' over " + maskURLPassword(file.toString()) + " at stage '"
+                    + failure.getStage() + "'. The failure is retryable, so the file is left"
+                    + " untouched and the next poll will resume it", failure);
+            return false;
+        }
+        log.error("Inbound endpoint '" + name + "' failed running streamPipeline '" + key + "' over "
+                + maskURLPassword(file.toString()) + " at stage '" + failure.getStage()
+                + "'. Reading it again would fail the same way, so '"
+                + VFSConstants.TRANSPORT_FILE_ACTION_AFTER_FAILURE + "' applies", failure);
+        try {
+            postProcessingHandler.onFail(file);
+        } catch (Exception disposalFailure) {
+            log.error("Inbound endpoint '" + name + "' could not apply the failure action to "
+                    + maskURLPassword(file.toString()) + "; it is left in place", disposalFailure);
+        }
+        return false;
+    }
+
+    /**
+     * An empty message for the pipeline to bind template parameters against.
+     *
+     * <p>Deliberately bare: no envelope, no payload, no transport headers. Nothing reads content from
+     * it, and a pipeline given a seed takes its bytes from the seed. Its only job is to be somewhere
+     * the pipeline can push a {@code TemplateContext} so a connector operation can read the
+     * parameters it was configured with.
+     */
+    private org.apache.synapse.MessageContext configurationCarrier() {
+        org.apache.synapse.MessageContext msgCtx = synapseEnvironment.createMessageContext();
+        ((Axis2MessageContext) msgCtx).getAxis2MessageContext().setServerSide(true);
+        return msgCtx;
+    }
+
+    private boolean runStreamPipeline(FileObject file) {
+        String key = vfsConfig.getStreamPipeline();
+        StreamPipeline pipeline = synapseEnvironment.getSynapseConfiguration().getStreamPipeline(key);
+        if (pipeline == null) {
+            log.error("Inbound endpoint '" + name + "' names streamPipeline '" + key
+                    + "', which is not deployed. The file is left in place for a later attempt: "
+                    + maskURLPassword(file.toString()));
+            return false;
+        }
+        try {
+            FileContent content = file.getContent();
+            long size = content.getSize();
+            long lastModified = content.getLastModifiedTime();
+            String identity = file.getName().getURI() + "|" + size + "|" + lastModified;
+
+            // The identity is always supplied -- it names the run and is recorded for diagnostics
+            // either way. The origin is what decides whether anything may resume into that name.
+            // REOPENABLE unconditionally: a file on disk can be read again, and that is the whole
+            // question this flag asks. What post-processing may later do to it is a separate decision,
+            // made after a failure rather than before one -- and it never runs at all when the server
+            // is killed, which is precisely the case resume exists for.
+            StreamSeed seed = new StreamSeed(content.getInputStream(), identity, size, lastModified,
+                    StreamOrigin.REOPENABLE);
+            pipeline.execute(configurationCarrier(), JobContext.NOOP, seed);
+            return true;
+        } catch (StreamException e) {
+            return afterFailure(file, key, e);
+        } catch (Exception e) {
+            log.error("Inbound endpoint '" + name + "' could not read "
+                    + maskURLPassword(file.toString()) + " for streamPipeline '" + key + "'", e);
+            return false;
+        } finally {
+            safeClose(file);
+        }
     }
 
     private void safeClose(FileObject fo) {

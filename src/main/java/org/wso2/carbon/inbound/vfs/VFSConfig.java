@@ -68,6 +68,9 @@ public class VFSConfig {
      * Content-Type to use for the message
      */
     private String contentType;
+
+    /** Pipeline to run over each file, or null to inject into a sequence. */
+    private String streamPipeline;
     /**
      * Should the last updated time timestamp be updated
      */
@@ -161,6 +164,7 @@ public class VFSConfig {
         this.replayFileName = properties.getProperty(VFSConstants.REPLY_FILE_NAME);
         this.fileNamePattern = properties.getProperty(VFSConstants.TRANSPORT_FILE_FILE_NAME_PATTERN);
         this.contentType = properties.getProperty(VFSConstants.TRANSPORT_FILE_CONTENT_TYPE);
+        this.streamPipeline = trimToNull(properties.getProperty(VFSConstants.STREAM_PIPELINE));
 
         // Boolean/string flags
         this.updateLastModified = Boolean.parseBoolean(
@@ -458,6 +462,15 @@ public class VFSConfig {
 
     public boolean getCheckSizeIgnoreEmpty() {
         return checkSizeIgnoreEmpty;
+    }
+
+    /** The {@code <streamPipeline>} to run over each file, or {@code null} to inject into a sequence. */
+    public String getStreamPipeline() {
+        return streamPipeline;
+    }
+
+    private static String trimToNull(String value) {
+        return value == null || value.trim().isEmpty() ? null : value.trim();
     }
 
     public boolean isStreaming() {
