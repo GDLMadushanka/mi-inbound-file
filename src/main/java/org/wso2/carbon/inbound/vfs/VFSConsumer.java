@@ -18,11 +18,13 @@
 
 package org.wso2.carbon.inbound.vfs;
 
+import org.apache.axis2.util.GracefulShutdownTimer;
 import org.apache.synapse.core.axis2.Axis2MessageContext;
 import org.apache.synapse.stream.JobContext;
 import org.apache.synapse.stream.StreamException;
 import org.apache.synapse.stream.StreamOrigin;
 import org.apache.synapse.stream.StreamSeed;
+import org.apache.synapse.stream.StreamShutdown;
 import org.apache.synapse.stream.pipeline.StreamPipeline;
 import org.apache.commons.lang.StringUtils;
 import org.apache.commons.logging.Log;
@@ -50,6 +52,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
@@ -60,6 +63,10 @@ public class VFSConsumer extends GenericPollingConsumer {
 
     private static final Log log = LogFactory.getLog(VFSConsumer.class);
     private static final String EMPTY_MD5 = "d41d8cd98f00b204e9800998ecf8427e";
+
+    /** How long {@link #pause()} waits for an in-flight transfer when the server sets no deadline. */
+    private static final long PAUSE_STOP_WAIT_MILLIS = 30_000L;
+    private static final long PAUSE_POLL_MILLIS = 100L;
     private final VFSConfig vfsConfig;
     private final FileSelector fileSelector;
     private final PreProcessingHandler preProcessingHandler;
@@ -80,6 +87,14 @@ public class VFSConsumer extends GenericPollingConsumer {
     private boolean isMounted = false;
 
     private String fileURI;
+
+    /**
+     * Whether the polling thread is inside {@code pipeline.execute}.
+     *
+     * <p>Read by {@link #pause()}, which runs on a different thread and must not close the file system
+     * manager out from under a transfer that is still reading through it.
+     */
+    private final AtomicBoolean transferInFlight = new AtomicBoolean();
 
     public VFSConsumer(Properties properties,
                        String name,
@@ -649,6 +664,16 @@ public class VFSConsumer extends GenericPollingConsumer {
      *         because the disposal has already happened here
      */
     private boolean afterFailure(FileObject file, String key, StreamException failure) {
+        if (StreamShutdown.requested()) {
+            // Not a fault: the run stopped because it was told to. Logged without the stack trace it
+            // would otherwise carry, because during a shutdown every in-flight transfer arrives here
+            // at once and none of them is anything to diagnose.
+            log.warn("Inbound endpoint '" + name + "' stopped streamPipeline '" + key + "' over "
+                    + maskURLPassword(file.toString()) + " because the server is shutting down."
+                    + " The file is left in place and the next poll after restart resumes it: "
+                    + failure.getMessage());
+            return false;
+        }
         if (failure.isRetryable()) {
             log.error("Inbound endpoint '" + name + "' failed running streamPipeline '" + key
                     + "' over " + maskURLPassword(file.toString()) + " at stage '"
@@ -706,7 +731,12 @@ public class VFSConsumer extends GenericPollingConsumer {
             // is killed, which is precisely the case resume exists for.
             StreamSeed seed = new StreamSeed(content.getInputStream(), identity, size, lastModified,
                     StreamOrigin.REOPENABLE);
-            pipeline.execute(configurationCarrier(), JobContext.NOOP, seed);
+            transferInFlight.set(true);
+            try {
+                pipeline.execute(configurationCarrier(), JobContext.NOOP, seed);
+            } finally {
+                transferInFlight.set(false);
+            }
             return true;
         } catch (StreamException e) {
             return afterFailure(file, key, e);
@@ -831,10 +861,54 @@ public class VFSConsumer extends GenericPollingConsumer {
         }
     }
 
+    /**
+     * Quiesces this endpoint for a graceful shutdown.
+     *
+     * <p>MI pauses every inbound endpoint <b>before</b> it asks anything to stop, and
+     * {@link #close()} closes the file system manager — which a transfer in flight is still reading
+     * through. Closing it underneath one turns an orderly stop into an I/O error at an arbitrary byte,
+     * and it happens before the shutdown signal exists, so the run never gets to record the position it
+     * had reached and repeats up to a whole checkpoint interval on the next attempt.
+     *
+     * <p>So the signal is raised here, first, and this waits for the run to leave the pipeline.
+     * Bounded by the server's own graceful-shutdown deadline where there is one, since that is the
+     * budget everything else in the shutdown is spending too. Expiry is not a failure: the transfer is
+     * killed with the process, which is what an ungraceful stop always did, and a resumable run comes
+     * back from its last checkpoint.
+     */
     @Override
     public void pause() {
         isClosed = true;
+        stopTransferInFlight();
         this.close();
+    }
+
+    private void stopTransferInFlight() {
+        if (!transferInFlight.get()) {
+            return;
+        }
+        log.info("Inbound endpoint '" + name + "' is pausing with a stream transfer in flight;"
+                + " asking it to stop at its next unit");
+        StreamShutdown.request();
+
+        long budget = GracefulShutdownTimer.getInstance().getRemainingTimeMillis();
+        if (budget <= 0L) {
+            budget = PAUSE_STOP_WAIT_MILLIS;        // graceful shutdown disabled, or a restart
+        }
+        long deadline = System.currentTimeMillis() + budget;
+        while (transferInFlight.get() && System.currentTimeMillis() < deadline) {
+            try {
+                Thread.sleep(PAUSE_POLL_MILLIS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                break;
+            }
+        }
+        if (transferInFlight.get()) {
+            log.warn("Inbound endpoint '" + name + "' still has a stream transfer running after "
+                    + (budget / 1000L) + "s; continuing to shut down. The file is left in place and"
+                    + " a resumable transfer restarts from its last checkpoint");
+        }
     }
 
     private static class ResolvedFileUri {
