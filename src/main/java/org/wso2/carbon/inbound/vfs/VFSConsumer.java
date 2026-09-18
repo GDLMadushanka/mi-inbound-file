@@ -20,6 +20,7 @@ package org.wso2.carbon.inbound.vfs;
 
 import org.apache.axis2.util.GracefulShutdownTimer;
 import org.apache.synapse.core.axis2.Axis2MessageContext;
+import org.apache.synapse.stream.Invoker;
 import org.apache.synapse.stream.JobContext;
 import org.apache.synapse.stream.StreamException;
 import org.apache.synapse.stream.StreamOrigin;
@@ -708,6 +709,33 @@ public class VFSConsumer extends GenericPollingConsumer {
         return msgCtx;
     }
 
+    /**
+     * Says who is running this, because nothing else can.
+     *
+     * <p>The framework works out a run's invoker by reading what Synapse stamped on the message being
+     * mediated — the API, proxy or inbound endpoint. That works for everything that <i>injects</i>. It
+     * cannot work here: this endpoint hands the pipeline a seed instead of injecting, so there is no
+     * injected message, and the context it does pass is the bare carrier above, synthesised so operators
+     * have somewhere to read their parameters from. Nothing stamped a name on it and nothing could have.
+     *
+     * <p>Left undeclared, every run started here is recorded as {@code DIRECT} with no name, and no
+     * listing can answer "what has this endpoint transferred". So it is declared, through the hook the
+     * framework checks first for exactly this case.
+     */
+    private JobContext invokedByThisEndpoint() {
+        return new JobContext() {
+            @Override
+            public String invokerType() {
+                return Invoker.INBOUND;
+            }
+
+            @Override
+            public String invokerName() {
+                return name;
+            }
+        };
+    }
+
     private boolean runStreamPipeline(FileObject file) {
         String key = vfsConfig.getStreamPipeline();
         StreamPipeline pipeline = synapseEnvironment.getSynapseConfiguration().getStreamPipeline(key);
@@ -733,7 +761,7 @@ public class VFSConsumer extends GenericPollingConsumer {
                     StreamOrigin.REOPENABLE);
             transferInFlight.set(true);
             try {
-                pipeline.execute(configurationCarrier(), JobContext.NOOP, seed);
+                pipeline.execute(configurationCarrier(), invokedByThisEndpoint(), seed);
             } finally {
                 transferInFlight.set(false);
             }
