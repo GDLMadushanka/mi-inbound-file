@@ -72,16 +72,16 @@ public class VFSConstants {
     public static final String STREAMING = "transport.vfs.Streaming";
 
     /**
-     * Names a {@code <streamPipeline>} to run over each detected file, instead of injecting the file
+     * Names a {@code <streamSequence>} to run over each detected file, instead of injecting the file
      * into a sequence.
      *
      * <p>The endpoint builds a {@code StreamSeed} from the file it already holds — the stream, and the
-     * identity that says which file this is — and runs the pipeline directly. No message is built,
-     * because a pipeline reads bytes rather than mediating a message.
+     * identity that says which file this is — and runs the sequence directly. No message is built,
+     * because a sequence reads bytes rather than mediating a message.
      *
-     * <p>Mutually exclusive with {@code sequence}. See {@code VFSConsumer#runStreamPipeline}.
+     * <p>Mutually exclusive with {@code sequence}. See {@code VFSConsumer#runStreamSequence}.
      */
-    public static final String STREAM_PIPELINE = "transport.vfs.StreamPipeline";
+    public static final String STREAM_SEQUENCE = "transport.vfs.StreamSequence";
 
     public static final String MAX_RETRY_COUNT = "transport.vfs.MaxRetryCount";
     public static final String FORCE_CREATE_FOLDER = "transport.vfs.CreateFolder";

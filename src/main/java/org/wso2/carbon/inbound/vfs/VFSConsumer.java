@@ -20,13 +20,13 @@ package org.wso2.carbon.inbound.vfs;
 
 import org.apache.axis2.util.GracefulShutdownTimer;
 import org.apache.synapse.core.axis2.Axis2MessageContext;
-import org.apache.synapse.stream.Invoker;
+import org.apache.synapse.stream.spi.Invoker;
 import org.apache.synapse.stream.JobContext;
 import org.apache.synapse.stream.StreamException;
 import org.apache.synapse.stream.StreamOrigin;
 import org.apache.synapse.stream.StreamSeed;
 import org.apache.synapse.stream.StreamShutdown;
-import org.apache.synapse.stream.pipeline.StreamPipeline;
+import org.apache.synapse.stream.sequence.StreamSequence;
 import org.apache.commons.lang.StringUtils;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -90,7 +90,7 @@ public class VFSConsumer extends GenericPollingConsumer {
     private String fileURI;
 
     /**
-     * Whether the polling thread is inside {@code pipeline.execute}.
+     * Whether the polling thread is inside {@code sequence.execute}.
      *
      * <p>Read by {@link #pause()}, which runs on a different thread and must not close the file system
      * manager out from under a transfer that is still reading through it.
@@ -133,7 +133,7 @@ public class VFSConsumer extends GenericPollingConsumer {
         this.fileInjectHandler = new FileInjectHandler(injectingSeq, onErrorSeq, sequential, synapseEnvironment,
                 vfsConfig);
         this.preProcessingHandler = new PreProcessingHandler();
-        requireStreamPipelineIsUsable(injectingSeq);
+        requireStreamSequenceIsUsable(injectingSeq);
         this.postProcessingHandler = new PostProcessingHandler();
         int actionAfterProcess = vfsConfig.getActionAfterProcess();
         this.postProcessingHandler.setOnSuccessAction(Utils.getActionAfterProcess(vfsConfig, actionAfterProcess, vfsConfig.getMoveAfterProcess(), fsManager));
@@ -198,7 +198,7 @@ public class VFSConsumer extends GenericPollingConsumer {
         this.fileInjectHandler = new FileInjectHandler(injectingSeq, onErrorSeq, sequential, synapseEnvironment,
                 vfsConfig);
         this.preProcessingHandler = new PreProcessingHandler();
-        requireStreamPipelineIsUsable(injectingSeq);
+        requireStreamSequenceIsUsable(injectingSeq);
         this.postProcessingHandler = new PostProcessingHandler();
         int actionAfterProcess = vfsConfig.getActionAfterProcess();
         this.postProcessingHandler.setOnSuccessAction(Utils.getActionAfterProcess(vfsConfig, actionAfterProcess,
@@ -445,13 +445,13 @@ public class VFSConsumer extends GenericPollingConsumer {
                 fileInjectHandler.setTransportHeaders(headers);
                 fileInjectHandler.setFileURI(fileURI);
 
-                // For a pipeline, disposal on failure has already happened inside runStreamPipeline
+                // For a sequence, disposal on failure has already happened inside runStreamSequence
                 // -- a retryable failure leaves the file exactly where it is so the next poll resumes
                 // it, anything else applies the configured action. So only success reaches the
                 // post-processing below, and 'false' means "already dealt with".
-                boolean pipeline = vfsConfig.getStreamPipeline() != null;
-                boolean ok = pipeline ? runStreamPipeline(file) : fileInjectHandler.invoke(file, name);
-                if (pipeline && !ok) {
+                boolean sequence = vfsConfig.getStreamSequence() != null;
+                boolean ok = sequence ? runStreamSequence(file) : fileInjectHandler.invoke(file, name);
+                if (sequence && !ok) {
                     return;
                 }
                 if (ok) {
@@ -572,7 +572,7 @@ public class VFSConsumer extends GenericPollingConsumer {
     }
 
     /**
-     * Runs the configured {@code <streamPipeline>} over one file, seeded from the file itself.
+     * Runs the configured {@code <streamSequence>} over one file, seeded from the file itself.
      *
      * <h2>Why the endpoint builds the seed</h2>
      * Identity belongs to whoever holds the source, because only it knows what distinguishes one
@@ -594,14 +594,14 @@ public class VFSConsumer extends GenericPollingConsumer {
      * unsafe under {@code sequential="false"}.
      *
      * <p>An <b>empty</b> message context is still required, though, and passing {@code null} does not
-     * work. A connector operation reaches the pipeline through its ordinary template, so its
-     * parameters are read from the invoking message's function stack — the pipeline pushes a
+     * work. A connector operation reaches the sequence through its ordinary template, so its
+     * parameters are read from the invoking message's function stack — the sequence pushes a
      * {@code TemplateContext} onto it around each build call. With no message there is no stack, and
      * the operation refuses with <i>"needs the invoking message to read its parameters from"</i>.
      * So the message exists to carry configuration, not content.
      *
      * <h2>The stream stays ours</h2>
-     * {@code StreamSeed}'s contract leaves ownership with the provider; the pipeline shields the
+     * {@code StreamSeed}'s contract leaves ownership with the provider; the sequence shields the
      * stream rather than closing it. So the file is closed here, in a finally, once the transfer has
      * ended. Running synchronously is the point: the transfer is over before post-processing decides
      * what to do with the file.
@@ -610,12 +610,12 @@ public class VFSConsumer extends GenericPollingConsumer {
      * @return {@code true} if the transfer completed
      */
     /**
-     * Refuses the configurations in which a stream pipeline could not do what it promises.
+     * Refuses the configurations in which a stream sequence could not do what it promises.
      *
      * <p>Called once, at construction, so a deployer learns at deploy time rather than from a transfer
      * that silently did the wrong thing.
      *
-     * <h2>A sequence and a pipeline are alternatives</h2>
+     * <h2>A sequence and a sequence are alternatives</h2>
      * They consume the file in incompatible ways — one mediates a message per file, the other reads
      * bytes — so silently preferring either would leave half the configuration inert.
      *
@@ -624,19 +624,19 @@ public class VFSConsumer extends GenericPollingConsumer {
      * nothing can tell a bad file from a declaration written for a different one. MOVE is the answer
      * for anyone unsure — the file survives for inspection and leaves the polled directory.
      */
-    private void requireStreamPipelineIsUsable(String injectingSeq) {
-        String key = vfsConfig.getStreamPipeline();
+    private void requireStreamSequenceIsUsable(String injectingSeq) {
+        String key = vfsConfig.getStreamSequence();
         if (key == null) {
             return;
         }
         if (injectingSeq != null && !injectingSeq.trim().isEmpty()) {
             throw new IllegalArgumentException("Inbound endpoint '" + name + "' sets both 'sequence'"
-                    + " and '" + VFSConstants.STREAM_PIPELINE + "'. They consume the file in"
-                    + " incompatible ways -- a sequence mediates one message per file, a pipeline"
+                    + " and '" + VFSConstants.STREAM_SEQUENCE + "'. They consume the file in"
+                    + " incompatible ways -- a sequence mediates one message per file, a sequence"
                     + " reads its bytes -- so one of them would be inert. Remove one");
         }
         if (vfsConfig.isFileLocking() && !vfsConfig.isAutoLockRelease()) {
-            log.warn("Inbound endpoint '" + name + "' runs streamPipeline '" + key + "' with file"
+            log.warn("Inbound endpoint '" + name + "' runs streamSequence '" + key + "' with file"
                     + " locking on and '" + VFSConstants.TRANSPORT_AUTO_LOCK_RELEASE + "' off. A"
                     + " server killed mid-transfer leaves a stale lock, and the file is then skipped"
                     + " on every later poll -- so the transfer never resumes. Enable auto lock"
@@ -645,7 +645,7 @@ public class VFSConsumer extends GenericPollingConsumer {
     }
 
     /**
-     * Decides what a failed transfer leaves behind, from the one thing the pipeline can honestly say.
+     * Decides what a failed transfer leaves behind, from the one thing the sequence can honestly say.
      *
      * <h2>Retryable means leave it alone</h2>
      * A backend that was down, a database that was unreachable — reading the same file again is
@@ -669,20 +669,20 @@ public class VFSConsumer extends GenericPollingConsumer {
             // Not a fault: the run stopped because it was told to. Logged without the stack trace it
             // would otherwise carry, because during a shutdown every in-flight transfer arrives here
             // at once and none of them is anything to diagnose.
-            log.warn("Inbound endpoint '" + name + "' stopped streamPipeline '" + key + "' over "
+            log.warn("Inbound endpoint '" + name + "' stopped streamSequence '" + key + "' over "
                     + maskURLPassword(file.toString()) + " because the server is shutting down."
                     + " The file is left in place and the next poll after restart resumes it: "
                     + failure.getMessage());
             return false;
         }
         if (failure.isRetryable()) {
-            log.error("Inbound endpoint '" + name + "' failed running streamPipeline '" + key
+            log.error("Inbound endpoint '" + name + "' failed running streamSequence '" + key
                     + "' over " + maskURLPassword(file.toString()) + " at stage '"
                     + failure.getStage() + "'. The failure is retryable, so the file is left"
                     + " untouched and the next poll will resume it", failure);
             return false;
         }
-        log.error("Inbound endpoint '" + name + "' failed running streamPipeline '" + key + "' over "
+        log.error("Inbound endpoint '" + name + "' failed running streamSequence '" + key + "' over "
                 + maskURLPassword(file.toString()) + " at stage '" + failure.getStage()
                 + "'. Reading it again would fail the same way, so '"
                 + VFSConstants.TRANSPORT_FILE_ACTION_AFTER_FAILURE + "' applies", failure);
@@ -696,11 +696,11 @@ public class VFSConsumer extends GenericPollingConsumer {
     }
 
     /**
-     * An empty message for the pipeline to bind template parameters against.
+     * An empty message for the sequence to bind template parameters against.
      *
      * <p>Deliberately bare: no envelope, no payload, no transport headers. Nothing reads content from
-     * it, and a pipeline given a seed takes its bytes from the seed. Its only job is to be somewhere
-     * the pipeline can push a {@code TemplateContext} so a connector operation can read the
+     * it, and a sequence given a seed takes its bytes from the seed. Its only job is to be somewhere
+     * the sequence can push a {@code TemplateContext} so a connector operation can read the
      * parameters it was configured with.
      */
     private org.apache.synapse.MessageContext configurationCarrier() {
@@ -714,7 +714,7 @@ public class VFSConsumer extends GenericPollingConsumer {
      *
      * <p>The framework works out a run's invoker by reading what Synapse stamped on the message being
      * mediated — the API, proxy or inbound endpoint. That works for everything that <i>injects</i>. It
-     * cannot work here: this endpoint hands the pipeline a seed instead of injecting, so there is no
+     * cannot work here: this endpoint hands the sequence a seed instead of injecting, so there is no
      * injected message, and the context it does pass is the bare carrier above, synthesised so operators
      * have somewhere to read their parameters from. Nothing stamped a name on it and nothing could have.
      *
@@ -736,11 +736,11 @@ public class VFSConsumer extends GenericPollingConsumer {
         };
     }
 
-    private boolean runStreamPipeline(FileObject file) {
-        String key = vfsConfig.getStreamPipeline();
-        StreamPipeline pipeline = synapseEnvironment.getSynapseConfiguration().getStreamPipeline(key);
-        if (pipeline == null) {
-            log.error("Inbound endpoint '" + name + "' names streamPipeline '" + key
+    private boolean runStreamSequence(FileObject file) {
+        String key = vfsConfig.getStreamSequence();
+        StreamSequence sequence = synapseEnvironment.getSynapseConfiguration().getStreamSequence(key);
+        if (sequence == null) {
+            log.error("Inbound endpoint '" + name + "' names streamSequence '" + key
                     + "', which is not deployed. The file is left in place for a later attempt: "
                     + maskURLPassword(file.toString()));
             return false;
@@ -761,7 +761,7 @@ public class VFSConsumer extends GenericPollingConsumer {
                     StreamOrigin.REOPENABLE);
             transferInFlight.set(true);
             try {
-                pipeline.execute(configurationCarrier(), invokedByThisEndpoint(), seed);
+                sequence.execute(configurationCarrier(), invokedByThisEndpoint(), seed);
             } finally {
                 transferInFlight.set(false);
             }
@@ -770,7 +770,7 @@ public class VFSConsumer extends GenericPollingConsumer {
             return afterFailure(file, key, e);
         } catch (Exception e) {
             log.error("Inbound endpoint '" + name + "' could not read "
-                    + maskURLPassword(file.toString()) + " for streamPipeline '" + key + "'", e);
+                    + maskURLPassword(file.toString()) + " for streamSequence '" + key + "'", e);
             return false;
         } finally {
             safeClose(file);
@@ -898,7 +898,7 @@ public class VFSConsumer extends GenericPollingConsumer {
      * and it happens before the shutdown signal exists, so the run never gets to record the position it
      * had reached and repeats up to a whole checkpoint interval on the next attempt.
      *
-     * <p>So the signal is raised here, first, and this waits for the run to leave the pipeline.
+     * <p>So the signal is raised here, first, and this waits for the run to leave the sequence.
      * Bounded by the server's own graceful-shutdown deadline where there is one, since that is the
      * budget everything else in the shutdown is spending too. Expiry is not a failure: the transfer is
      * killed with the process, which is what an ungraceful stop always did, and a resumable run comes
